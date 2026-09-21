@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-serif: 'Newsreader', Georgia, serif;
+    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: #FAF9F5;
+    color: #161616;
+    letter-spacing: -0.01em;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  body.dark,
+  .dark body {
+    background-color: #141413;
+    color: #FAF9F5;
+  }
+}
+
+.font-serif {
+  font-family: var(--font-serif), Georgia, serif;
+}
+
+.font-sans {
+  font-family: var(--font-sans), sans-serif;
+}
+
+.font-mono {
+  font-family: var(--font-mono), monospace;
+}
+
+/* Editorial Drop Cap */
+.drop-cap::first-letter {
+  font-family: var(--font-serif);
+  float: left;
+  font-size: 3.8rem;
+  line-height: 0.8;
+  padding-right: 0.15em;
+  padding-top: 0.08em;
+  font-style: italic;
+  font-weight: 400;
+  color: #161616;
+}
+
+.dark .drop-cap::first-letter {
+  color: #FAF9F5;
+}
+
+/* Custom scrollbar for minimalist feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #FAF9F5;
+}
+.dark ::-webkit-scrollbar-track {
+  background: #141413;
+}
+::-webkit-scrollbar-thumb {
+  background: #D8D6CE;
+  border-radius: 3px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #33322E;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #A8A69E;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #4D4B45;
+}
+
+/* Disallow printing */
+@media print {
+  html, body {
+    display: none !important;
+  }
+}
+
+
