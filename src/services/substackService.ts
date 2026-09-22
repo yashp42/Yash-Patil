@@ -94,9 +94,57 @@ export function formatPostDate(dateStr: string): string {
   }
 }
 
-const CACHE_KEY = 'yash_substack_posts_cache_v2';
-const CACHE_TIME_KEY = 'yash_substack_cache_time_v2';
-const CACHE_TTL_MS = 1000 * 60 * 30; // 30 minutes
+const CACHE_KEY = 'yash_substack_posts_cache_v4';
+const CACHE_TIME_KEY = 'yash_substack_cache_time_v4';
+const CACHE_TTL_MS = 1000 * 60 * 15; // 15 minutes
+
+// Clean up any legacy cache versions
+try {
+  localStorage.removeItem('yash_substack_posts_cache');
+  localStorage.removeItem('yash_substack_posts_cache_v2');
+  localStorage.removeItem('yash_substack_posts_cache_v3');
+  localStorage.removeItem('yash_substack_cache_time_v2');
+} catch (_) {}
+
+function mergeAndSortPosts(fetched: SubstackPost[], baseline: SubstackPost[]): SubstackPost[] {
+  const map = new Map<string, SubstackPost>();
+
+  // Add baseline posts first
+  baseline.forEach(p => {
+    const key = p.link.replace(/\/$/, '').toLowerCase();
+    map.set(key, p);
+  });
+
+  // Merge in fetched posts
+  fetched.forEach(p => {
+    const key = p.link.replace(/\/$/, '').toLowerCase();
+    const existing = map.get(key);
+    if (existing) {
+      map.set(key, {
+        ...existing,
+        ...p,
+        contentHtml: (p.contentHtml && p.contentHtml.length > 50) ? p.contentHtml : existing.contentHtml,
+        coverImage: p.coverImage || existing.coverImage,
+        tags: p.tags && p.tags.length > 0 ? p.tags : existing.tags
+      });
+    } else {
+      map.set(key, p);
+    }
+  });
+
+  const combined = Array.from(map.values());
+  // Sort descending by pubDate
+  combined.sort((a, b) => {
+    const timeA = new Date(a.pubDate).getTime() || 0;
+    const timeB = new Date(b.pubDate).getTime() || 0;
+    return timeB - timeA;
+  });
+
+  return combined.map((p, idx) => ({
+    ...p,
+    isFeatured: idx === 0
+  }));
+}
 
 function parseXmlRssFeed(xmlText: string, cleanUrl: string): SubstackPost[] {
   try {
@@ -133,8 +181,8 @@ function parseXmlRssFeed(xmlText: string, cleanUrl: string): SubstackPost[] {
         readingTimeMinutes: calculateReadingTime(content),
         excerpt: plainExcerpt,
         contentHtml: content,
-        tags: categories.length > 0 ? categories.slice(0, 3) : ['Product', 'Strategy'],
-        coverImage: enclosure || SUBSTACK_POSTS[idx % SUBSTACK_POSTS.length]?.coverImage,
+        tags: categories.length > 0 ? categories.slice(0, 3) : ['Consumer AI', 'Strategy'],
+        coverImage: enclosure,
         isFeatured: idx === 0
       });
     });
@@ -148,15 +196,25 @@ function parseXmlRssFeed(xmlText: string, cleanUrl: string): SubstackPost[] {
 
 export function getCachedSubstackPosts(): SubstackPost[] | null {
   try {
+    const cachedTime = localStorage.getItem(CACHE_TIME_KEY);
+    if (cachedTime && Date.now() - parseInt(cachedTime, 10) > CACHE_TTL_MS) {
+      return null;
+    }
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) {
-      return JSON.parse(cached) as SubstackPost[];
+      const parsed = JSON.parse(cached) as SubstackPost[];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return mergeAndSortPosts(parsed, SUBSTACK_POSTS);
+      }
     }
   } catch (_) {}
   return null;
 }
 
-export async function fetchSubstackFeed(substackInput: string): Promise<{
+export async function fetchSubstackFeed(
+  substackInput: string,
+  forceRefresh = false
+): Promise<{
   posts: SubstackPost[];
   feedInfo?: { title: string; link: string; description: string };
   isLive: boolean;
@@ -164,9 +222,22 @@ export async function fetchSubstackFeed(substackInput: string): Promise<{
 }> {
   const { feedUrl, cleanUrl, handle } = cleanSubstackUrl(substackInput);
 
-  // 1. Try rss2json proxy
+  if (!forceRefresh) {
+    const cachedPosts = getCachedSubstackPosts();
+    if (cachedPosts && cachedPosts.length > 0) {
+      return {
+        posts: cachedPosts,
+        isLive: true
+      };
+    }
+  }
+
+  const timestamp = Date.now();
+  const cacheBustedFeedUrl = `${feedUrl}?t=${timestamp}`;
+
+  // 1. Try rss2json proxy with cache-busting
   try {
-    const proxyUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedUrl)}`;
+    const proxyUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(cacheBustedFeedUrl)}`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000);
 
@@ -185,11 +256,10 @@ export async function fetchSubstackFeed(substackInput: string): Promise<{
 
           const coverImg =
             item.thumbnail ||
-            item.enclosure?.link ||
-            SUBSTACK_POSTS[idx % SUBSTACK_POSTS.length]?.coverImage;
+            item.enclosure?.link;
 
           return {
-            id: item.guid || `feed-${idx}-${Date.now()}`,
+            id: item.guid || `feed-${idx}-${timestamp}`,
             title: item.title,
             link: item.link || cleanUrl,
             pubDate: item.pubDate,
@@ -203,14 +273,17 @@ export async function fetchSubstackFeed(substackInput: string): Promise<{
           };
         });
 
+        // Merge mapped posts with our baseline curated archive
+        const merged = mergeAndSortPosts(mappedPosts, SUBSTACK_POSTS);
+
         // Update local cache
         try {
-          localStorage.setItem(CACHE_KEY, JSON.stringify(mappedPosts));
+          localStorage.setItem(CACHE_KEY, JSON.stringify(merged));
           localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
         } catch (_) {}
 
         return {
-          posts: mappedPosts,
+          posts: merged,
           feedInfo: data.feed ? {
             title: data.feed.title || `${handle}'s Substack`,
             link: data.feed.link || cleanUrl,
@@ -221,12 +294,12 @@ export async function fetchSubstackFeed(substackInput: string): Promise<{
       }
     }
   } catch (err) {
-    console.info('rss2json proxy unreachable, trying direct XML fallback:', err);
+    console.info('rss2json proxy unreachable, checking fallback:', err);
   }
 
   // 2. Secondary Fallback: AllOrigins raw XML proxy + native DOMParser
   try {
-    const rawProxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(feedUrl)}`;
+    const rawProxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(cacheBustedFeedUrl)}`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000);
 
@@ -237,13 +310,14 @@ export async function fetchSubstackFeed(substackInput: string): Promise<{
       const xmlText = await response.text();
       const xmlPosts = parseXmlRssFeed(xmlText, cleanUrl);
       if (xmlPosts.length > 0) {
+        const merged = mergeAndSortPosts(xmlPosts, SUBSTACK_POSTS);
         try {
-          localStorage.setItem(CACHE_KEY, JSON.stringify(xmlPosts));
+          localStorage.setItem(CACHE_KEY, JSON.stringify(merged));
           localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
         } catch (_) {}
 
         return {
-          posts: xmlPosts,
+          posts: merged,
           feedInfo: {
             title: `${handle}'s Substack`,
             link: cleanUrl,
@@ -257,16 +331,7 @@ export async function fetchSubstackFeed(substackInput: string): Promise<{
     console.info('AllOrigins XML fallback unreachable:', err);
   }
 
-  // 3. Tertiary fallback: Check local storage cache
-  const cachedPosts = getCachedSubstackPosts();
-  if (cachedPosts && cachedPosts.length > 0) {
-    return {
-      posts: cachedPosts,
-      isLive: true
-    };
-  }
-
-  // 4. Default curated archive
+  // 3. Fallback: Always return baseline SUBSTACK_POSTS (which now includes the latest post!)
   return {
     posts: SUBSTACK_POSTS,
     isLive: false,

@@ -1,4 +1,5 @@
 import { ExperienceItem, ProductCaseStudy, SubstackPost } from '../types';
+import { LIVE_SUBSTACK_POSTS } from './substackArticles';
 
 export const PERSONAL_INFO = {
   name: "Yash Patil",
@@ -11,7 +12,7 @@ export const PERSONAL_INFO = {
   degree: "B.S. (Hons.) Applied Geology (2023 to 2027)",
   email: "yashpatil303022@gmail.com",
   academicEmail: "yashpatil@kgpian.iitkgp.ac.in",
-  linkedin: "https://www.linkedin.com/in/yashpatil",
+  linkedin: "https://www.linkedin.com/in/yash-patil6010/",
   github: "https://github.com/yashpatil",
   twitter: "https://x.com/patilyash",
   defaultSubstackHandle: "patilyash",
@@ -707,6 +708,7 @@ export const PRODUCT_CASE_STUDIES: ProductCaseStudy[] = [
 ];
 
 export const SUBSTACK_POSTS: SubstackPost[] = [
+  ...LIVE_SUBSTACK_POSTS,
   {
     id: "sub-pm-01",
     title: "The Architecture of Conversational Products: Why Bots Fail Without Clear Decision Paths",
@@ -715,7 +717,7 @@ export const SUBSTACK_POSTS: SubstackPost[] = [
     pubDate: "2025-02-20",
     formattedDate: "Feb 20, 2025",
     readingTimeMinutes: 6,
-    isFeatured: true,
+    isFeatured: false,
     tags: ["Consumer Products", "Product Management", "Conversational AI"],
     excerpt: "Analyzing 45,000 user sessions at Bajaj Finance revealed that conversational drop-offs happen not because language models fail, but because the interface lacks clear next action suggestions.",
     contentHtml: `

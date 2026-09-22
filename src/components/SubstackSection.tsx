@@ -4,7 +4,8 @@ import {
   ArrowUpRight,
   Clock,
   Calendar,
-  ExternalLink
+  ExternalLink,
+  RefreshCw
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { SubstackPost } from '../types';
@@ -13,6 +14,21 @@ import { fetchSubstackFeed } from '../services/substackService';
 
 const EDITORIAL_EASE = [0.16, 1, 0.3, 1] as const;
 
+function formatLastUpdated(date: Date): string {
+  try {
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch {
+    return date.toLocaleString();
+  }
+}
+
 interface SubstackSectionProps {
   onOpenArticle: (post: SubstackPost) => void;
 }
@@ -20,22 +36,56 @@ interface SubstackSectionProps {
 export default function SubstackSection({ onOpenArticle }: SubstackSectionProps) {
   const [posts, setPosts] = useState<SubstackPost[]>(SUBSTACK_POSTS);
   const [selectedTag, setSelectedTag] = useState<string>('All');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date>(() => {
+    try {
+      const saved = localStorage.getItem('yash_substack_cache_time_v4');
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed > 0) return new Date(parsed);
+      }
+    } catch (_) {}
+    return new Date();
+  });
 
   // Extract all unique tags
   const allTags = ['All', ...Array.from(new Set(posts.flatMap(p => p.tags)))];
 
-  useEffect(() => {
-    // Attempt background sync with live feed from patilyash.substack.com
-    const handle = PERSONAL_INFO.defaultSubstackHandle || 'patilyash';
-    fetchSubstackFeed(handle)
-      .then(result => {
-        if (result.isLive && result.posts.length > 0) {
-          setPosts(result.posts);
+  const syncFeed = async (force = false) => {
+    if (force) {
+      setIsRefreshing(true);
+      setSyncFeedback('Syncing...');
+    }
+    try {
+      const handle = PERSONAL_INFO.defaultSubstackHandle || 'patilyash';
+      const result = await fetchSubstackFeed(handle, force);
+      if (result.posts && result.posts.length > 0) {
+        setPosts(result.posts);
+        const now = new Date();
+        setLastUpdated(now);
+        try {
+          localStorage.setItem('yash_substack_cache_time_v4', now.getTime().toString());
+        } catch (_) {}
+
+        if (force) {
+          setSyncFeedback('Feed Updated');
+          setTimeout(() => setSyncFeedback(null), 3000);
         }
-      })
-      .catch(() => {
-        // Keep default curated posts
-      });
+      }
+    } catch {
+      if (force) {
+        setSyncFeedback('Checked');
+        setTimeout(() => setSyncFeedback(null), 3000);
+      }
+    } finally {
+      if (force) setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    // Background sync on mount
+    syncFeed(false);
   }, []);
 
   const filteredPosts = selectedTag === 'All'
@@ -75,7 +125,17 @@ export default function SubstackSection({ onOpenArticle }: SubstackSectionProps)
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => syncFeed(true)}
+              disabled={isRefreshing}
+              className="flex items-center gap-1.5 px-3 py-2 border border-[#D8D6CE] hover:border-[#161616] dark:border-[#33322E] dark:hover:border-[#FAF9F5] bg-white dark:bg-[#1C1B19] rounded-xs text-xs font-mono text-[#52504C] dark:text-[#C5C3B8] transition-colors cursor-pointer disabled:opacity-60"
+              title="Check Substack for recently published essays"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-[#E05338] ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span>{syncFeedback || 'Sync Feed'}</span>
+            </button>
+
             <a
               href="https://patilyash.substack.com"
               target="_blank"
@@ -87,6 +147,17 @@ export default function SubstackSection({ onOpenArticle }: SubstackSectionProps)
             </a>
           </div>
         </motion.div>
+
+        {/* Feed Freshness / Last Updated Indicator */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 pb-1 text-xs font-mono text-[#73726E] dark:text-[#9A9890]">
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>Last updated: {formatLastUpdated(lastUpdated)}</span>
+          </div>
+          <span className="text-[11px] text-[#8C8A82] dark:text-[#7A7870]">
+            Live sync • patilyash.substack.com
+          </span>
+        </div>
 
         {/* Tag Filters */}
         <motion.div
