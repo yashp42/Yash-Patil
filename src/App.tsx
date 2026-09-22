@@ -15,6 +15,7 @@ import Footer from './components/Footer';
 import CaseStudyModal from './components/CaseStudyModal';
 import ArticleModal from './components/ArticleModal';
 import SectionDivider from './components/SectionDivider';
+import GrowthCaseStudiesPage from './components/case-studies/GrowthCaseStudiesPage';
 import { SubstackPost } from './types';
 import { ThemeProvider } from './context/ThemeContext';
 
@@ -27,18 +28,48 @@ export default function App() {
 }
 
 function MainPortfolio() {
+  const [currentView, setCurrentView] = useState<'home' | 'case-studies'>('home');
   const [activeCaseStudyId, setActiveCaseStudyId] = useState<string | null>(null);
   const [activeArticle, setActiveArticle] = useState<SubstackPost | null>(null);
 
+  // Sync view with hash route
   useEffect(() => {
-    if (activeArticle) {
+    const handleHashChange = () => {
+      const hash = window.location.hash.toLowerCase();
+      if (hash.startsWith('#/case-studies') || hash === '#case-studies-page') {
+        setCurrentView('case-studies');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        setCurrentView('home');
+      }
+    };
+
+    handleHashChange();
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const navigateTo = (view: 'home' | 'case-studies') => {
+    setCurrentView(view);
+    if (view === 'case-studies') {
+      window.location.hash = '#/case-studies';
+    } else {
+      window.location.hash = '';
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    if (currentView === 'case-studies') {
+      document.title = `Case Studies & Growth Teardowns – Yash Patil`;
+    } else if (activeArticle) {
       document.title = `${activeArticle.title} – Yash Patil`;
     } else if (activeCaseStudyId) {
       document.title = `Case Study – Yash Patil`;
     } else {
-      document.title = `Yash Patil – Product & Strategy`;
+      document.title = `Yash Patil – Product & Strategy Portfolio`;
     }
-  }, [activeArticle, activeCaseStudyId]);
+  }, [currentView, activeArticle, activeCaseStudyId]);
 
   const handleOpenCaseStudy = (caseStudyId: string) => {
     setActiveCaseStudyId(caseStudyId);
@@ -49,6 +80,14 @@ function MainPortfolio() {
   };
 
   const scrollToSection = (sectionId: string) => {
+    if (currentView !== 'home') {
+      navigateTo('home');
+      setTimeout(() => {
+        const el = document.getElementById(sectionId);
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+      return;
+    }
     const el = document.getElementById(sectionId);
     if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
@@ -57,42 +96,59 @@ function MainPortfolio() {
     <div className="min-h-screen bg-[#FAF9F5] dark:bg-[#141413] text-[#161616] dark:text-[#FAF9F5] font-sans antialiased selection:bg-[#161616] selection:text-[#FAF9F5] dark:selection:bg-[#FAF9F5] dark:selection:text-[#141413] transition-colors duration-200">
       {/* Top Navigation */}
       <Navbar
+        currentView={currentView}
+        onNavigateCaseStudies={() => navigateTo('case-studies')}
+        onNavigateHome={() => navigateTo('home')}
         onContactClick={() => scrollToSection('contact')}
       />
 
-      {/* Hero Section */}
-      <Hero
-        onExploreExperience={() => scrollToSection('experience')}
-        onExploreCaseStudies={() => scrollToSection('projects')}
-        onExploreSubstack={() => scrollToSection('writing')}
-      />
+      {currentView === 'case-studies' ? (
+        /* Dedicated Growth.design Style Case Studies & Teardowns View */
+        <GrowthCaseStudiesPage
+          onBackToOverview={() => navigateTo('home')}
+        />
+      ) : (
+        /* Primary Portfolio View */
+        <>
+          {/* Hero Section */}
+          <Hero
+            onExploreExperience={() => scrollToSection('experience')}
+            onExploreCaseStudies={() => scrollToSection('projects')}
+            onExploreSubstack={() => scrollToSection('writing')}
+            onExploreTeardowns={() => navigateTo('case-studies')}
+          />
 
-      <SectionDivider />
+          <SectionDivider />
 
-      {/* Primary: Selected Projects & Case Studies */}
-      <CaseStudiesSection onOpenCaseStudy={handleOpenCaseStudy} />
+          {/* Primary: Selected Projects & Case Studies */}
+          <CaseStudiesSection 
+            onOpenCaseStudy={handleOpenCaseStudy} 
+            onExploreTeardowns={() => navigateTo('case-studies')}
+          />
 
-      <SectionDivider />
+          <SectionDivider />
 
-      {/* Product Work & Internships */}
-      <ExperienceSection />
+          {/* Product Work & Internships */}
+          <ExperienceSection />
 
-      <SectionDivider />
+          <SectionDivider />
 
-      {/* Substack Publication & Product Thinking */}
-      <SubstackSection onOpenArticle={handleOpenArticle} />
+          {/* Substack Publication & Product Thinking */}
+          <SubstackSection onOpenArticle={handleOpenArticle} />
 
-      <SectionDivider />
+          <SectionDivider />
 
-      {/* Background */}
-      <AboutSection
-        onContactClick={() => scrollToSection('contact')}
-      />
+          {/* Background */}
+          <AboutSection
+            onContactClick={() => scrollToSection('contact')}
+          />
 
-      <SectionDivider />
+          <SectionDivider />
 
-      {/* Direct Inquiries & Contact */}
-      <ContactSection />
+          {/* Direct Inquiries & Contact */}
+          <ContactSection />
+        </>
+      )}
 
       {/* Clean Footer */}
       <Footer />

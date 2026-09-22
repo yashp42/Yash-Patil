@@ -5,9 +5,17 @@ import { useTheme } from '../context/ThemeContext';
 
 interface NavbarProps {
   onContactClick: () => void;
+  onNavigateCaseStudies?: () => void;
+  onNavigateHome?: () => void;
+  currentView?: 'home' | 'case-studies';
 }
 
-export default function Navbar({ onContactClick }: NavbarProps) {
+export default function Navbar({ 
+  onContactClick, 
+  onNavigateCaseStudies, 
+  onNavigateHome,
+  currentView = 'home'
+}: NavbarProps) {
   const { theme, toggleTheme } = useTheme();
   const [copied, setCopied] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -27,6 +35,22 @@ export default function Navbar({ onContactClick }: NavbarProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleNavClick = (sectionId?: string) => {
+    if (currentView === 'case-studies') {
+      if (onNavigateHome) onNavigateHome();
+      if (sectionId) {
+        setTimeout(() => {
+          const el = document.getElementById(sectionId);
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      }
+    } else if (sectionId) {
+      const el = document.getElementById(sectionId);
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
+    setMobileMenuOpen(false);
+  };
+
   return (
     <header
       id="main-navbar"
@@ -38,47 +62,60 @@ export default function Navbar({ onContactClick }: NavbarProps) {
     >
       <div className="max-w-7xl mx-auto px-6 sm:px-8 flex items-center justify-between">
         {/* Left: Refined Monogram & Name */}
-        <a
-          href="#"
-          className="group flex items-center gap-2.5 text-[#161616] dark:text-[#FAF9F5] hover:opacity-80 transition-opacity"
+        <button
+          onClick={() => handleNavClick()}
+          className="group flex items-center gap-2.5 text-[#161616] dark:text-[#FAF9F5] hover:opacity-80 transition-opacity cursor-pointer text-left"
         >
           <span className="font-serif text-lg tracking-tight font-medium text-[#161616] dark:text-[#FAF9F5]">
             {PERSONAL_INFO.name}
           </span>
-        </a>
+        </button>
 
         {/* Center: Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-7 text-sm font-sans text-[#52504C] dark:text-[#B5B3A8]">
-          <a
-            href="#projects"
-            className="hover:text-[#161616] dark:hover:text-[#FAF9F5] transition-colors py-1 relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-0 after:h-[1px] after:bg-[#161616] dark:after:bg-[#FAF9F5] hover:after:w-full after:transition-all"
+        <nav className="hidden md:flex items-center gap-6 lg:gap-7 text-sm font-sans text-[#52504C] dark:text-[#B5B3A8]">
+          <button
+            onClick={() => {
+              if (onNavigateCaseStudies) onNavigateCaseStudies();
+            }}
+            className={`transition-colors py-1 cursor-pointer ${
+              currentView === 'case-studies'
+                ? 'text-[#161616] dark:text-[#FAF9F5] font-medium border-b border-[#161616] dark:border-[#FAF9F5]'
+                : 'hover:text-[#161616] dark:hover:text-[#FAF9F5]'
+            }`}
+          >
+            Case Studies
+          </button>
+
+          <button
+            onClick={() => handleNavClick('projects')}
+            className="hover:text-[#161616] dark:hover:text-[#FAF9F5] transition-colors py-1 cursor-pointer"
           >
             Projects
-          </a>
-          <a
-            href="#experience"
-            className="hover:text-[#161616] dark:hover:text-[#FAF9F5] transition-colors py-1 relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-0 after:h-[1px] after:bg-[#161616] dark:after:bg-[#FAF9F5] hover:after:w-full after:transition-all"
+          </button>
+          <button
+            onClick={() => handleNavClick('experience')}
+            className="hover:text-[#161616] dark:hover:text-[#FAF9F5] transition-colors py-1 cursor-pointer"
           >
             Experience
-          </a>
-          <a
-            href="#writing"
-            className="hover:text-[#161616] dark:hover:text-[#FAF9F5] transition-colors py-1 relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-0 after:h-[1px] after:bg-[#161616] dark:after:bg-[#FAF9F5] hover:after:w-full after:transition-all"
+          </button>
+          <button
+            onClick={() => handleNavClick('writing')}
+            className="hover:text-[#161616] dark:hover:text-[#FAF9F5] transition-colors py-1 cursor-pointer"
           >
             Writing
-          </a>
-          <a
-            href="#about"
-            className="hover:text-[#161616] dark:hover:text-[#FAF9F5] transition-colors py-1 relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-0 after:h-[1px] after:bg-[#161616] dark:after:bg-[#FAF9F5] hover:after:w-full after:transition-all"
+          </button>
+          <button
+            onClick={() => handleNavClick('about')}
+            className="hover:text-[#161616] dark:hover:text-[#FAF9F5] transition-colors py-1 cursor-pointer"
           >
             About
-          </a>
-          <a
-            href="#contact"
-            className="hover:text-[#161616] dark:hover:text-[#FAF9F5] transition-colors py-1 relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-0 after:h-[1px] after:bg-[#161616] dark:after:bg-[#FAF9F5] hover:after:w-full after:transition-all"
+          </button>
+          <button
+            onClick={() => handleNavClick('contact')}
+            className="hover:text-[#161616] dark:hover:text-[#FAF9F5] transition-colors py-1 cursor-pointer"
           >
             Contact
-          </a>
+          </button>
         </nav>
 
         {/* Right: Quick Actions (Theme Toggle & Email Copy) */}
@@ -160,42 +197,45 @@ export default function Navbar({ onContactClick }: NavbarProps) {
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-[#E8E6E0] dark:border-[#282724] bg-[#FAF9F5] dark:bg-[#141413] px-6 py-6 space-y-5">
           <nav className="flex flex-col space-y-3 font-serif text-lg">
-            <a
-              href="#projects"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-[#161616] dark:text-[#FAF9F5] hover:text-[#73726E] dark:hover:text-[#A8A69E] transition-colors"
+            <button
+              onClick={() => {
+                if (onNavigateCaseStudies) onNavigateCaseStudies();
+                setMobileMenuOpen(false);
+              }}
+              className="text-[#161616] dark:text-[#FAF9F5] hover:text-[#73726E] dark:hover:text-[#A8A69E] transition-colors text-left font-serif text-lg flex items-center justify-between"
+            >
+              <span>Case Studies &amp; Teardowns</span>
+            </button>
+            <button
+              onClick={() => handleNavClick('projects')}
+              className="text-[#161616] dark:text-[#FAF9F5] hover:text-[#73726E] dark:hover:text-[#A8A69E] transition-colors text-left font-serif text-lg"
             >
               Work &amp; Projects
-            </a>
-            <a
-              href="#experience"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-[#161616] dark:text-[#FAF9F5] hover:text-[#73726E] dark:hover:text-[#A8A69E] transition-colors"
+            </button>
+            <button
+              onClick={() => handleNavClick('experience')}
+              className="text-[#161616] dark:text-[#FAF9F5] hover:text-[#73726E] dark:hover:text-[#A8A69E] transition-colors text-left font-serif text-lg"
             >
               Experience
-            </a>
-            <a
-              href="#writing"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-[#161616] dark:text-[#FAF9F5] hover:text-[#73726E] dark:hover:text-[#A8A69E] transition-colors flex items-center justify-between"
+            </button>
+            <button
+              onClick={() => handleNavClick('writing')}
+              className="text-[#161616] dark:text-[#FAF9F5] hover:text-[#73726E] dark:hover:text-[#A8A69E] transition-colors text-left font-serif text-lg"
             >
-              <span>Writing</span>
-              <span className="text-xs font-mono px-2 py-0.5 rounded bg-[#E05338]/10 text-[#E05338]">Substack</span>
-            </a>
-            <a
-              href="#about"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-[#161616] dark:text-[#FAF9F5] hover:text-[#73726E] dark:hover:text-[#A8A69E] transition-colors"
+              Writing &amp; Essays
+            </button>
+            <button
+              onClick={() => handleNavClick('about')}
+              className="text-[#161616] dark:text-[#FAF9F5] hover:text-[#73726E] dark:hover:text-[#A8A69E] transition-colors text-left font-serif text-lg"
             >
               About
-            </a>
-            <a
-              href="#contact"
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-[#161616] dark:text-[#FAF9F5] hover:text-[#73726E] dark:hover:text-[#A8A69E] transition-colors"
+            </button>
+            <button
+              onClick={() => handleNavClick('contact')}
+              className="text-[#161616] dark:text-[#FAF9F5] hover:text-[#73726E] dark:hover:text-[#A8A69E] transition-colors text-left font-serif text-lg"
             >
               Contact
-            </a>
+            </button>
           </nav>
 
           {/* Theme Toggle & Email in Mobile Drawer */}

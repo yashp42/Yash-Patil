@@ -7,9 +7,10 @@ const EDITORIAL_EASE = [0.16, 1, 0.3, 1] as const;
 
 interface CaseStudiesSectionProps {
   onOpenCaseStudy: (id: string) => void;
+  onExploreTeardowns?: () => void;
 }
 
-export default function CaseStudiesSection({ onOpenCaseStudy }: CaseStudiesSectionProps) {
+export default function CaseStudiesSection({ onOpenCaseStudy, onExploreTeardowns }: CaseStudiesSectionProps) {
   const [activeCategory, setActiveCategory] = useState<string>('All');
 
   const categories = [
@@ -59,6 +60,34 @@ export default function CaseStudiesSection({ onOpenCaseStudy }: CaseStudiesSecti
             {PRODUCT_CASE_STUDIES.length} Projects
           </div>
         </motion.div>
+
+        {/* Case Studies & Teardowns Callout Card */}
+        <div className="mt-8 p-6 bg-white dark:bg-[#171716] rounded-xs border border-[#E8E6E0] dark:border-[#2C2B27] flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-1.5 max-w-2xl">
+            <div className="font-mono text-xs uppercase tracking-wider text-[#73726E] dark:text-[#9A9890]">
+              Product Teardowns &amp; Slide Decks
+            </div>
+            <h3 className="font-serif text-xl sm:text-2xl text-[#161616] dark:text-[#FAF9F5] tracking-tight">
+              Behavioral Teardowns &amp; Strategy Presentations
+            </h3>
+            <p className="text-sm text-[#52504C] dark:text-[#C5C3B8] font-sans leading-relaxed">
+              Step-by-step product walkthroughs analyzing user friction, pricing architecture, and operational distribution strategies.
+            </p>
+          </div>
+
+          <a
+            href="#/case-studies"
+            onClick={(e) => {
+              if (onExploreTeardowns) {
+                e.preventDefault();
+                onExploreTeardowns();
+              }
+            }}
+            className="shrink-0 inline-flex items-center justify-center px-4 py-2.5 rounded-xs bg-[#161616] dark:bg-[#FAF9F5] hover:bg-[#333] dark:hover:bg-[#EAE8E0] text-[#FAF9F5] dark:text-[#141413] font-normal text-xs font-sans transition-colors cursor-pointer"
+          >
+            Explore Case Studies &amp; Teardowns →
+          </a>
+        </div>
 
         {/* Category Filters */}
         <motion.div

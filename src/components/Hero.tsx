@@ -7,11 +7,12 @@ interface HeroProps {
   onExploreExperience: () => void;
   onExploreCaseStudies: () => void;
   onExploreSubstack: () => void;
+  onExploreTeardowns?: () => void;
 }
 
 const EDITORIAL_EASE = [0.16, 1, 0.3, 1] as const;
 
-export default function Hero({ onExploreExperience, onExploreCaseStudies, onExploreSubstack }: HeroProps) {
+export default function Hero({ onExploreExperience, onExploreCaseStudies, onExploreSubstack, onExploreTeardowns }: HeroProps) {
   return (
     <section id="hero" className="pt-12 pb-16 md:pt-20 md:pb-24">
       <div className="max-w-6xl mx-auto px-6 sm:px-8">
@@ -45,11 +46,21 @@ export default function Hero({ onExploreExperience, onExploreCaseStudies, onExpl
               transition={{ duration: 0.8, delay: 0.28, ease: EDITORIAL_EASE }}
               className="mt-10 flex flex-wrap items-center gap-3 font-sans text-sm"
             >
+              {onExploreTeardowns && (
+                <button
+                  type="button"
+                  onClick={onExploreTeardowns}
+                  className="px-4 py-2.5 bg-[#161616] dark:bg-[#FAF9F5] text-[#FAF9F5] dark:text-[#141413] rounded-xs font-medium hover:bg-[#333] dark:hover:bg-[#EAE8E0] transition-colors cursor-pointer"
+                >
+                  Case Studies &amp; Teardowns →
+                </button>
+              )}
+
               <a
                 href="#projects"
-                className="px-4 py-2.5 bg-[#161616] dark:bg-[#FAF9F5] text-[#FAF9F5] dark:text-[#141413] rounded-xs font-medium hover:bg-[#333] dark:hover:bg-[#EAE8E0] transition-colors"
+                className="px-4 py-2.5 border border-[#D8D6CE] hover:border-[#161616] dark:border-[#33322E] dark:hover:border-[#FAF9F5] bg-white dark:bg-[#1C1B19] text-[#161616] dark:text-[#FAF9F5] rounded-xs font-medium transition-colors"
               >
-                Work &amp; Projects
+                Selected Work
               </a>
 
               <a
