@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import CaseStudiesSection from './components/CaseStudiesSection';
@@ -29,6 +29,16 @@ export default function App() {
 function MainPortfolio() {
   const [activeCaseStudyId, setActiveCaseStudyId] = useState<string | null>(null);
   const [activeArticle, setActiveArticle] = useState<SubstackPost | null>(null);
+
+  useEffect(() => {
+    if (activeArticle) {
+      document.title = `${activeArticle.title} – Yash Patil`;
+    } else if (activeCaseStudyId) {
+      document.title = `Case Study – Yash Patil`;
+    } else {
+      document.title = `Yash Patil – Product & Strategy`;
+    }
+  }, [activeArticle, activeCaseStudyId]);
 
   const handleOpenCaseStudy = (caseStudyId: string) => {
     setActiveCaseStudyId(caseStudyId);

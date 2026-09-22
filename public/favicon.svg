@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" rx="14" fill="#161616" />
+  <rect x="1" y="1" width="62" height="62" rx="13" fill="none" stroke="#33322E" stroke-width="1.5" />
+
+  <!-- Monogram YP -->
+  <g fill="none" stroke="#FAF9F5" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Y -->
+    <path d="M 16 19 L 26 32 L 26 45" />
+    <path d="M 34 19 L 26 32" />
+    
+    <!-- P -->
+    <path d="M 40 45 L 40 19 L 49 19 C 54.5 19 54.5 32 49 32 L 40 32" />
+  </g>
+
+  <!-- Signature terracotta dot -->
+  <circle cx="55" cy="43" r="3.5" fill="#E05338" />
+</svg>
