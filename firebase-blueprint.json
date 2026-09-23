@@ -1,0 +1,32 @@
+{
+  "entities": {
+    "caseStudy": {
+      "title": "CaseStudy",
+      "description": "Interactive case studies, product teardowns, and presentation decks",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique slug identifier for the case study" },
+        "title": { "type": "string", "description": "Display title of the study" },
+        "subtitle": { "type": "string", "description": "Subtitle or strategic context" },
+        "company": { "type": "string", "description": "Company or competition name" },
+        "role": { "type": "string", "description": "Role held during the project" },
+        "period": { "type": "string", "description": "Timeline or duration" },
+        "category": { "type": "string", "description": "Strategic domain category" },
+        "format": { "type": "string", "description": "Format: interactive_comic or slide_deck" },
+        "availability": { "type": "string", "description": "Status: available, coming_soon, or draft" },
+        "deckPdfUrl": { "type": "string", "description": "URL to PDF deck or Google Drive presentation link" },
+        "overview": { "type": "string", "description": "Executive overview" },
+        "theProblem": { "type": "string", "description": "Problem statement and challenge" },
+        "slidesCount": { "type": "number", "description": "Total number of slides" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp of last modification" }
+      },
+      "required": ["id", "title", "company", "category", "format"]
+    }
+  },
+  "firestore": {
+    "/caseStudies/{caseStudyId}": {
+      "schema": "caseStudy",
+      "description": "Collection of interactive portfolio case studies, strategy teardowns, and presentation decks"
+    }
+  }
+}

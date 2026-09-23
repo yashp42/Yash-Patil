@@ -26,6 +26,8 @@ export default function AdminCreatorStudioModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
   const [quickDriveLinks, setQuickDriveLinks] = useState<Record<string, string>>({});
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isSavingLink, setIsSavingLink] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const map: Record<string, string> = {};
@@ -40,10 +42,11 @@ export default function AdminCreatorStudioModal({
   const handleUpdateSingleDriveLink = async (study: InteractiveCaseStudy) => {
     const newUrl = (quickDriveLinks[study.id] || '').trim();
     if (!newUrl) {
-      alert('Please enter a valid Google Drive or presentation URL.');
+      setNotification('Please enter a valid Google Drive or presentation URL.');
       return;
     }
     const token = getActiveToken();
+    setIsSavingLink((prev) => ({ ...prev, [study.id]: true }));
     try {
       const updatedPayload = {
         ...study,
@@ -51,10 +54,12 @@ export default function AdminCreatorStudioModal({
         downloadDeckUrl: newUrl
       };
       await persistCaseStudy(updatedPayload, study.id, token);
-      setNotification(`Updated Drive link for "${study.company}"!`);
+      setNotification(`✓ Real-Time Cloud Synced: Updated Drive link for "${study.company}"!`);
       onRefreshData();
     } catch {
-      alert('Failed to update Drive link.');
+      setNotification('Failed to update Drive link in cloud database.');
+    } finally {
+      setIsSavingLink((prev) => ({ ...prev, [study.id]: false }));
     }
   };
 
@@ -274,14 +279,14 @@ export default function AdminCreatorStudioModal({
   };
 
   const handleDeleteStudy = async (id: string, titleName: string) => {
-    if (!window.confirm(`Are you sure you want to permanently delete "${titleName}"?`)) return;
     const token = getActiveToken();
     try {
       await removeCaseStudy(id, token);
-      setNotification(`Deleted "${titleName}".`);
+      setNotification(`✓ Real-Time Cloud Deleted: "${titleName}".`);
+      setDeleteConfirmId(null);
       onRefreshData();
     } catch {
-      alert('Failed to delete study.');
+      setNotification('Failed to delete study from cloud database.');
     }
   };
 
@@ -644,12 +649,29 @@ export default function AdminCreatorStudioModal({
                             [Edit Content]
                           </button>
 
-                          <button
-                            onClick={() => handleDeleteStudy(cs.id, cs.title)}
-                            className="px-2.5 py-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xs transition-colors cursor-pointer"
-                          >
-                            [Delete]
-                          </button>
+                          {deleteConfirmId === cs.id ? (
+                            <div className="flex items-center gap-1.5 animate-fade-in">
+                              <button
+                                onClick={() => handleDeleteStudy(cs.id, cs.title)}
+                                className="px-2.5 py-1 bg-red-600 text-white font-mono text-xs rounded-xs hover:bg-red-700 transition-colors cursor-pointer font-bold"
+                              >
+                                Confirm Delete?
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirmId(null)}
+                                className="px-2 py-1 border border-[#D8D6CE] dark:border-[#33322E] text-xs font-mono rounded-xs hover:bg-[#EAE7DE] dark:hover:bg-[#201F1C] cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setDeleteConfirmId(cs.id)}
+                              className="px-2.5 py-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xs transition-colors cursor-pointer"
+                            >
+                              [Delete]
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -734,9 +756,10 @@ export default function AdminCreatorStudioModal({
                               <button
                                 type="button"
                                 onClick={() => handleUpdateSingleDriveLink(cs)}
-                                className="w-full sm:w-auto px-4 py-2 bg-[#161616] dark:bg-[#FAF9F5] text-[#FAF9F5] dark:text-[#141413] font-mono text-xs font-medium rounded-xs hover:opacity-90 transition-opacity shrink-0 cursor-pointer"
+                                disabled={isSavingLink[cs.id]}
+                                className="w-full sm:w-auto px-4 py-2 bg-[#161616] dark:bg-[#FAF9F5] text-[#FAF9F5] dark:text-[#141413] font-mono text-xs font-medium rounded-xs hover:opacity-90 transition-opacity shrink-0 cursor-pointer disabled:opacity-50"
                               >
-                                Save Link
+                                {isSavingLink[cs.id] ? 'Saving to Cloud...' : 'Save Link'}
                               </button>
                             </div>
 

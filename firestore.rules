@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 100 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidCaseStudy(data) {
+      return data.keys().hasAll(['id', 'title', 'company', 'category', 'format'])
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 100
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && data.company is string && data.company.size() <= 100
+        && data.category is string && data.category.size() <= 100
+        && data.format in ['interactive_comic', 'slide_deck'];
+    }
+
+    match /caseStudies/{caseStudyId} {
+      allow read: if true;
+      allow create: if isValidId(caseStudyId) && isValidCaseStudy(request.resource.data);
+      allow update: if isValidId(caseStudyId) && isValidCaseStudy(request.resource.data);
+      allow delete: if isValidId(caseStudyId);
+    }
+  }
+}

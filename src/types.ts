@@ -166,5 +166,6 @@ export interface InteractiveCaseStudy {
   deckSlides?: DeckSlide[];
   downloadDeckUrl?: string;
   deckPdfUrl?: string;
+  updatedAt?: string;
 }
 

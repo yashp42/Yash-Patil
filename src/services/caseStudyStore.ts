@@ -1,11 +1,19 @@
+import { collection, doc, getDocs, setDoc, deleteDoc, onSnapshot, writeBatch } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { InteractiveCaseStudy } from '../types';
 import { INITIAL_CASE_STUDIES } from '../data/initialCaseStudies';
 
 const LOCAL_STORAGE_KEY = 'yp_case_studies_store_v1';
 const DECK_BLOBS_DB_NAME = 'yp_portfolio_decks_db';
 const DECK_BLOBS_STORE = 'decks';
+const FIRESTORE_COLLECTION = 'caseStudies';
 
-// Open or create IndexedDB for large presentation files (up to 100MB+ in browser)
+// Helper to remove any undefined fields before writing to Firestore
+function sanitizeForFirestore(obj: any): any {
+  return JSON.parse(JSON.stringify(obj, (_, v) => (v === undefined ? null : v)));
+}
+
+// Open or create IndexedDB for large local files
 function openDecksDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') {
@@ -13,9 +21,9 @@ function openDecksDB(): Promise<IDBDatabase> {
     }
     const req = indexedDB.open(DECK_BLOBS_DB_NAME, 1);
     req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(DECK_BLOBS_STORE)) {
-        db.createObjectStore(DECK_BLOBS_STORE);
+      const d = req.result;
+      if (!d.objectStoreNames.contains(DECK_BLOBS_STORE)) {
+        d.createObjectStore(DECK_BLOBS_STORE);
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -23,12 +31,12 @@ function openDecksDB(): Promise<IDBDatabase> {
   });
 }
 
-// Store a large base64/blob deck in IndexedDB
+// Store local deck blob in IndexedDB
 export async function storeLocalDeckBlob(key: string, dataUrl: string): Promise<void> {
   try {
-    const db = await openDecksDB();
+    const d = await openDecksDB();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(DECK_BLOBS_STORE, 'readwrite');
+      const tx = d.transaction(DECK_BLOBS_STORE, 'readwrite');
       tx.objectStore(DECK_BLOBS_STORE).put(dataUrl, key);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
@@ -41,9 +49,9 @@ export async function storeLocalDeckBlob(key: string, dataUrl: string): Promise<
 // Retrieve deck blob from IndexedDB
 export async function getLocalDeckBlob(key: string): Promise<string | null> {
   try {
-    const db = await openDecksDB();
+    const d = await openDecksDB();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(DECK_BLOBS_STORE, 'readonly');
+      const tx = d.transaction(DECK_BLOBS_STORE, 'readonly');
       const req = tx.objectStore(DECK_BLOBS_STORE).get(key);
       req.onsuccess = () => resolve(req.result || null);
       req.onerror = () => reject(req.error);
@@ -61,10 +69,8 @@ export function getLocalSavedStudies(): InteractiveCaseStudy[] {
     if (raw) {
       const parsed: InteractiveCaseStudy[] = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        // Map of cached studies by ID
         const parsedMap = new Map(parsed.map((p) => [p.id, p]));
 
-        // Ensure all INITIAL_CASE_STUDIES are present and retain their rich slides/details
         const merged: InteractiveCaseStudy[] = INITIAL_CASE_STUDIES.map((seed) => {
           const cached = parsedMap.get(seed.id);
           if (cached) {
@@ -80,18 +86,12 @@ export function getLocalSavedStudies(): InteractiveCaseStudy[] {
           return seed;
         });
 
-        // Add any custom case studies created by the user not in INITIAL_CASE_STUDIES
         const seedIds = new Set(INITIAL_CASE_STUDIES.map((s) => s.id));
         parsed.forEach((item) => {
           if (!seedIds.has(item.id)) {
             merged.push(item);
           }
         });
-
-        // Cache the merged list back
-        try {
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(merged));
-        } catch {}
 
         return merged;
       }
@@ -105,9 +105,8 @@ export function getLocalSavedStudies(): InteractiveCaseStudy[] {
 // Save studies to localStorage
 export function saveLocalStudies(studies: InteractiveCaseStudy[]): void {
   try {
-    // Avoid saving enormous base64 strings directly in localStorage JSON to prevent exceeding 5MB quota
     const sanitized = studies.map((s) => {
-      if (s.deckPdfUrl && s.deckPdfUrl.startsWith('data:')) {
+      if (s.deckPdfUrl && s.deckPdfUrl.startsWith('data:') && s.deckPdfUrl.length > 100000) {
         const deckKey = `deck_${s.id}`;
         storeLocalDeckBlob(deckKey, s.deckPdfUrl);
         return { ...s, deckPdfUrl: `indexeddb:${deckKey}` };
@@ -131,8 +130,102 @@ export async function resolveDeckUrl(url?: string): Promise<string> {
   return url;
 }
 
-// Load all case studies with smart server + client fallback
+// Seed initial case studies into Firestore if the cloud collection is empty
+export async function seedInitialCaseStudiesIfEmpty(): Promise<void> {
+  try {
+    const coll = collection(db, FIRESTORE_COLLECTION);
+    const snap = await getDocs(coll);
+    if (snap.empty) {
+      console.log('[Firestore] Empty collection detected. Seeding cloud database with initial case studies...');
+      const batch = writeBatch(db);
+      for (const study of INITIAL_CASE_STUDIES) {
+        const docRef = doc(db, FIRESTORE_COLLECTION, study.id);
+        batch.set(docRef, sanitizeForFirestore(study));
+      }
+      await batch.commit();
+      console.log('[Firestore] Cloud database initialized successfully.');
+    }
+  } catch (err) {
+    console.warn('[Firestore] Seed check skipped or failed:', err);
+  }
+}
+
+// Sort studies in stable order (seed order first, then recently updated)
+function sortStudies(studies: InteractiveCaseStudy[]): InteractiveCaseStudy[] {
+  const seedOrderMap = new Map(INITIAL_CASE_STUDIES.map((s, idx) => [s.id, idx]));
+  return [...studies].sort((a, b) => {
+    const orderA = seedOrderMap.has(a.id) ? seedOrderMap.get(a.id)! : 999;
+    const orderB = seedOrderMap.has(b.id) ? seedOrderMap.get(b.id)! : 999;
+    if (orderA !== orderB) return orderA - orderB;
+    return (b.updatedAt || '').localeCompare(a.updatedAt || '');
+  });
+}
+
+// Subscribe to real-time updates from Firestore (updates LIVE across all users)
+export function subscribeToCaseStudies(
+  onUpdate: (studies: InteractiveCaseStudy[]) => void,
+  onError?: (error: any) => void
+): () => void {
+  try {
+    const coll = collection(db, FIRESTORE_COLLECTION);
+
+    // Ensure seed data is in cloud
+    seedInitialCaseStudiesIfEmpty().catch(() => {});
+
+    const unsubscribe = onSnapshot(
+      coll,
+      (snapshot) => {
+        if (snapshot.empty) {
+          onUpdate(getLocalSavedStudies());
+          return;
+        }
+
+        const studies: InteractiveCaseStudy[] = [];
+        snapshot.forEach((d) => {
+          studies.push(d.data() as InteractiveCaseStudy);
+        });
+
+        const sorted = sortStudies(studies);
+        saveLocalStudies(sorted);
+        onUpdate(sorted);
+      },
+      (err) => {
+        console.warn('[Firestore] Snapshot listener error, using local fallback:', err);
+        onError?.(err);
+        onUpdate(getLocalSavedStudies());
+      }
+    );
+
+    return unsubscribe;
+  } catch (err) {
+    console.warn('[Firestore] Subscription setup failed, using local fallback:', err);
+    onUpdate(getLocalSavedStudies());
+    return () => {};
+  }
+}
+
+// Load all case studies with Cloud Firestore priority + local fallback
 export async function fetchAllCaseStudies(): Promise<InteractiveCaseStudy[]> {
+  // 1. Fetch from Cloud Firestore
+  try {
+    const coll = collection(db, FIRESTORE_COLLECTION);
+    const snap = await getDocs(coll);
+    if (!snap.empty) {
+      const studies: InteractiveCaseStudy[] = [];
+      snap.forEach((d) => {
+        studies.push(d.data() as InteractiveCaseStudy);
+      });
+      const sorted = sortStudies(studies);
+      saveLocalStudies(sorted);
+      return sorted;
+    } else {
+      await seedInitialCaseStudiesIfEmpty();
+    }
+  } catch (cloudErr) {
+    console.warn('[Firestore] Cloud fetch failed, checking fallbacks:', cloudErr);
+  }
+
+  // 2. Node server API fallback
   try {
     const res = await fetch('/api/case-studies');
     if (res.ok) {
@@ -141,32 +234,17 @@ export async function fetchAllCaseStudies(): Promise<InteractiveCaseStudy[]> {
       try {
         data = JSON.parse(text);
       } catch {
-        // Returned HTML (e.g. 404 from Vercel static routing)
         throw new Error('Non-JSON response');
       }
 
-      if (data.success && Array.isArray(data.caseStudies)) {
-        // Fetch full details if needed
-        const fullPromises = data.caseStudies.map(async (item: InteractiveCaseStudy) => {
-          try {
-            const detailRes = await fetch(`/api/case-studies/${item.id}`);
-            if (detailRes.ok) {
-              const detailData = await detailRes.json();
-              return detailData.caseStudy || item;
-            }
-          } catch {}
-          return item;
-        });
-        const serverStudies = await Promise.all(fullPromises);
-        saveLocalStudies(serverStudies);
-        return serverStudies;
+      if (data.success && Array.isArray(data.caseStudies) && data.caseStudies.length > 0) {
+        saveLocalStudies(data.caseStudies);
+        return data.caseStudies;
       }
     }
-  } catch (e) {
-    console.log('[Storage] Backend not reachable or static host (Vercel), using local storage & seed data:', e);
-  }
+  } catch {}
 
-  // Fallback to local storage or initial seeded data
+  // 3. Local storage fallback
   const localList = getLocalSavedStudies();
   const resolved = await Promise.all(
     localList.map(async (cs) => {
@@ -180,52 +258,49 @@ export async function fetchAllCaseStudies(): Promise<InteractiveCaseStudy[]> {
   return resolved;
 }
 
-// Upload file with seamless server-or-client fallback (no 404 crashes on Vercel)
-export interface UploadFileResult {
+// Upload presentation deck
+export async function uploadPresentationDeck(
+  file: File,
+  token: string = 'yash6010',
+  onProgress?: (status: string) => void
+): Promise<{
   success: boolean;
   url: string;
   fileName: string;
-  storage: 'server' | 'browser_local';
+  storage?: 'server' | 'browser_local' | 'cloud';
   isVercelStatic?: boolean;
-}
-
-export async function uploadPresentationDeck(
-  file: File,
-  token: string,
-  onProgress?: (status: string) => void
-): Promise<UploadFileResult> {
-  const sizeMb = file.size / (1024 * 1024);
-
+}> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
-    reader.onerror = () => {
-      reject(new Error(`Could not read "${file.name}" from your device.`));
+    reader.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const pct = Math.round((e.loaded / e.total) * 100);
+        onProgress?.(`Reading file: ${pct}%`);
+      }
     };
+
+    reader.onerror = () => reject(new Error('Failed to read file from disk'));
 
     reader.onload = async () => {
       try {
         const dataUrl = reader.result as string;
-        if (!dataUrl) {
-          throw new Error('Empty file content');
-        }
 
-        onProgress?.(`Uploading ${file.name} (${sizeMb.toFixed(1)}MB)...`);
-
-        let serverUrl = '';
+        // Try server-side storage if available
+        let serverUrl: string | null = null;
         let isServerSuccess = false;
 
-        // Try server upload first
         try {
-          const res = await fetch('/api/admin/upload-slide', {
+          onProgress?.('Uploading to server storage...');
+          const res = await fetch('/api/admin/upload-deck', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'x-admin-key': token.trim() || 'yash6010'
             },
             body: JSON.stringify({
-              dataUrl,
-              fileName: file.name
+              fileName: file.name,
+              fileData: dataUrl
             })
           });
 
@@ -233,17 +308,13 @@ export async function uploadPresentationDeck(
             const text = await res.text();
             try {
               const data = JSON.parse(text);
-              if (data.success && data.url) {
-                serverUrl = data.url;
+              if (data.success && data.fileUrl) {
+                serverUrl = data.fileUrl;
                 isServerSuccess = true;
               }
-            } catch {
-              // Serverless returned non-JSON (e.g. 404 HTML on Vercel)
-            }
+            } catch {}
           }
-        } catch (serverErr) {
-          console.warn('[Upload] Server endpoint unreachable, falling back to local browser storage:', serverErr);
-        }
+        } catch {}
 
         if (isServerSuccess && serverUrl) {
           resolve({
@@ -255,7 +326,7 @@ export async function uploadPresentationDeck(
           return;
         }
 
-        // GRACEFUL CLIENT-SIDE FALLBACK (e.g. on Vercel static deployments)
+        // Local browser storage fallback for large files
         onProgress?.('Saving to local presentation store...');
         const uniqueKey = `deck_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
         await storeLocalDeckBlob(uniqueKey, dataUrl);
@@ -276,58 +347,57 @@ export async function uploadPresentationDeck(
   });
 }
 
-// Save or update case study
+// Save or update case study in real time across Cloud Firestore + local
 export async function persistCaseStudy(
   payload: any,
   isEditingId?: string,
   token: string = 'yash6010'
 ): Promise<{ success: boolean; caseStudy: InteractiveCaseStudy }> {
-  let savedOnServer = false;
-  let returnedStudy: InteractiveCaseStudy | null = null;
+  const id = isEditingId || payload.id || `cs-custom-${Date.now()}`;
+  const now = new Date().toISOString();
 
+  const studyToPersist: InteractiveCaseStudy = {
+    ...payload,
+    id,
+    updatedAt: now,
+    slidesCount: payload.slidesCount || payload.deckSlides?.length || payload.slides?.length || (payload.deckPdfUrl ? 1 : 0)
+  };
+
+  // 1. Direct Cloud Firestore Write (Updates instantly for all visitors worldwide)
   try {
-    const url = isEditingId
-      ? `/api/admin/case-studies/${isEditingId}`
-      : '/api/admin/case-studies';
-    const method = isEditingId ? 'PUT' : 'POST';
+    const docRef = doc(db, FIRESTORE_COLLECTION, id);
+    const cloudPayload = { ...studyToPersist };
 
-    const res = await fetch(url, {
+    // If deckPdfUrl is an ultra-large base64 (>500KB), store locally and keep clean reference
+    if (cloudPayload.deckPdfUrl && cloudPayload.deckPdfUrl.startsWith('data:') && cloudPayload.deckPdfUrl.length > 500000) {
+      const deckKey = `deck_${id}`;
+      await storeLocalDeckBlob(deckKey, cloudPayload.deckPdfUrl);
+      cloudPayload.deckPdfUrl = `indexeddb:${deckKey}`;
+    }
+
+    await setDoc(docRef, sanitizeForFirestore(cloudPayload), { merge: true });
+    console.log('[Firestore] Persisted study to cloud database:', id);
+  } catch (firestoreErr) {
+    console.warn('[Firestore] Direct write failed, continuing with local sync:', firestoreErr);
+  }
+
+  // 2. Also notify Node backend if running full-stack
+  try {
+    const url = isEditingId ? `/api/admin/case-studies/${isEditingId}` : '/api/admin/case-studies';
+    const method = isEditingId ? 'PUT' : 'POST';
+    await fetch(url, {
       method,
       headers: {
         'Content-Type': 'application/json',
         'x-admin-key': token.trim() || 'yash6010'
       },
-      body: JSON.stringify(payload)
-    });
+      body: JSON.stringify(studyToPersist)
+    }).catch(() => {});
+  } catch {}
 
-    if (res.ok) {
-      const text = await res.text();
-      try {
-        const data = JSON.parse(text);
-        if (data.success && data.caseStudy) {
-          savedOnServer = true;
-          returnedStudy = data.caseStudy;
-        }
-      } catch {}
-    }
-  } catch (e) {
-    console.log('[Storage] Backend not reachable, persisting to client storage:', e);
-  }
-
-  // Also synchronize to local storage so it works regardless of hosting environment
+  // 3. Sync local storage
   const currentList = getLocalSavedStudies();
-  let studyToPersist: InteractiveCaseStudy;
-
-  if (returnedStudy) {
-    studyToPersist = returnedStudy;
-  } else {
-    studyToPersist = {
-      ...payload,
-      id: isEditingId || `cs-custom-${Date.now()}`
-    };
-  }
-
-  const existingIndex = currentList.findIndex((cs) => cs.id === studyToPersist.id);
+  const existingIndex = currentList.findIndex((cs) => cs.id === id);
   let updatedList: InteractiveCaseStudy[];
   if (existingIndex >= 0) {
     updatedList = [...currentList];
@@ -335,7 +405,6 @@ export async function persistCaseStudy(
   } else {
     updatedList = [studyToPersist, ...currentList];
   }
-
   saveLocalStudies(updatedList);
 
   return {
@@ -344,22 +413,32 @@ export async function persistCaseStudy(
   };
 }
 
-// Delete case study
+// Delete case study in real time across Cloud Firestore + local
 export async function removeCaseStudy(
   id: string,
   token: string = 'yash6010'
 ): Promise<boolean> {
+  // 1. Cloud Firestore Delete (Deletes instantly for all visitors worldwide)
+  try {
+    const docRef = doc(db, FIRESTORE_COLLECTION, id);
+    await deleteDoc(docRef);
+    console.log('[Firestore] Deleted study from cloud database:', id);
+  } catch (firestoreErr) {
+    console.warn('[Firestore] Cloud delete failed, continuing with local cleanup:', firestoreErr);
+  }
+
+  // 2. Notify Node backend if running full-stack
   try {
     await fetch(`/api/admin/case-studies/${id}`, {
       method: 'DELETE',
       headers: { 'x-admin-key': token.trim() || 'yash6010' }
-    });
-  } catch (e) {
-    console.log('[Storage] Backend DELETE failed, removing locally:', e);
-  }
+    }).catch(() => {});
+  } catch {}
 
+  // 3. Remove from local storage
   const currentList = getLocalSavedStudies();
   const filtered = currentList.filter((cs) => cs.id !== id);
   saveLocalStudies(filtered);
+
   return true;
 }

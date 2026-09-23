@@ -3,7 +3,7 @@ import { InteractiveCaseStudy, CaseStudyFormat, CaseStudyAvailability } from '..
 import InteractiveTeardownModal from './InteractiveTeardownModal';
 import SlideDeckViewerModal from './SlideDeckViewerModal';
 import AdminCreatorStudioModal from './AdminCreatorStudioModal';
-import { fetchAllCaseStudies } from '../../services/caseStudyStore';
+import { fetchAllCaseStudies, subscribeToCaseStudies } from '../../services/caseStudyStore';
 import { INITIAL_CASE_STUDIES } from '../../data/initialCaseStudies';
 
 interface GrowthCaseStudiesPageProps {
@@ -25,23 +25,31 @@ export default function GrowthCaseStudiesPage({ onBackToOverview }: GrowthCaseSt
 
   const fetchStudies = async () => {
     try {
-      setLoading(true);
       const studies = await fetchAllCaseStudies();
       if (studies && studies.length > 0) {
         setCaseStudies(studies);
-      } else {
-        setCaseStudies(INITIAL_CASE_STUDIES);
       }
     } catch (err) {
       console.error('Failed to load case studies:', err);
-      setCaseStudies(INITIAL_CASE_STUDIES);
-    } finally {
-      setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchStudies();
+    // 1. Subscribe to Cloud Firestore in real time
+    setLoading(true);
+    const unsubscribe = subscribeToCaseStudies(
+      (studies) => {
+        if (studies && studies.length > 0) {
+          setCaseStudies(studies);
+        } else {
+          setCaseStudies(INITIAL_CASE_STUDIES);
+        }
+        setLoading(false);
+      },
+      () => {
+        setLoading(false);
+      }
+    );
 
     // Check if author session is active
     if (localStorage.getItem('yp_admin_token')) {
@@ -63,7 +71,10 @@ export default function GrowthCaseStudiesPage({ onBackToOverview }: GrowthCaseSt
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      unsubscribe();
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   const handleOpenStudy = (cs: InteractiveCaseStudy) => {
