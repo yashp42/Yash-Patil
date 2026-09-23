@@ -41,6 +41,8 @@ export default function AdminCreatorStudioModal({
   const [deckSlides, setDeckSlides] = useState<DeckSlide[]>([]);
   const [deckPdfUrl, setDeckPdfUrl] = useState('');
   const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string>('');
+  const [customSlideCount, setCustomSlideCount] = useState<number>(0);
 
   // Helper to detect Google Drive / Slides / Docs / PDF links
   const detectedDriveInfo = (() => {
@@ -163,6 +165,7 @@ export default function AdminCreatorStudioModal({
     setSlides([]);
     setDeckSlides([]);
     setDeckPdfUrl('');
+    setCustomSlideCount(0);
   };
 
   const handleStartCreate = (selectedFormat: CaseStudyFormat = 'interactive_comic') => {
@@ -231,6 +234,7 @@ export default function AdminCreatorStudioModal({
     setTagsStr((cs.tags || []).join(', '));
     setExecutiveSummary(cs.executiveSummary || '');
     setDeckPdfUrl(cs.deckPdfUrl || '');
+    setCustomSlideCount(cs.slidesCount || 0);
     setSlides(cs.slides || []);
     setDeckSlides(cs.deckSlides || []);
     setActiveTab('editor');
@@ -254,12 +258,37 @@ export default function AdminCreatorStudioModal({
   };
 
   const handleFileUpload = async (file: File, onDone: (url: string) => void) => {
+    if (!file) return;
+
+    const sizeMb = file.size / (1024 * 1024);
+    if (sizeMb > 95) {
+      alert(
+        `"${file.name}" is ${sizeMb.toFixed(1)}MB. Direct upload is supported up to 95MB.\n\nFor large presentations or decks, upload the file to Google Drive and paste the share link into the field above — it will load seamlessly in the on-site reader!`
+      );
+      return;
+    }
+
     setIsUploadingFile(true);
+    setUploadStatus(`Preparing ${file.name} (${sizeMb.toFixed(1)}MB)...`);
+
     const reader = new FileReader();
+
+    reader.onerror = () => {
+      setIsUploadingFile(false);
+      setUploadStatus('');
+      alert(`Could not read "${file.name}" from your local disk.`);
+    };
+
     reader.onload = async () => {
-      const dataUrl = reader.result as string;
-      const token = getActiveToken();
       try {
+        const dataUrl = reader.result as string;
+        if (!dataUrl) {
+          throw new Error('Empty file content');
+        }
+
+        setUploadStatus(`Uploading ${file.name} (${sizeMb.toFixed(1)}MB)...`);
+        const token = getActiveToken();
+
         const res = await fetch('/api/admin/upload-slide', {
           method: 'POST',
           headers: {
@@ -271,19 +300,30 @@ export default function AdminCreatorStudioModal({
             fileName: file.name
           })
         });
-        const data = await res.json();
-        if (data.success && data.url) {
-          onDone(data.url);
-          setNotification(`Uploaded file: ${file.name}`);
-        } else {
-          alert('Upload failed: ' + (data.error || 'Server error'));
+
+        const text = await res.text();
+        let data: any = {};
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error(`Server returned status ${res.status}: ${text.slice(0, 150)}`);
         }
-      } catch {
-        alert('File upload failed.');
+
+        if (!res.ok || !data.success || !data.url) {
+          throw new Error(data.error || `Upload failed (status ${res.status})`);
+        }
+
+        onDone(data.url);
+        setNotification(`Uploaded file: ${file.name}`);
+      } catch (err: any) {
+        console.error('File upload error:', err);
+        alert('Upload failed: ' + (err?.message || 'Server connection error'));
       } finally {
         setIsUploadingFile(false);
+        setUploadStatus('');
       }
     };
+
     reader.readAsDataURL(file);
   };
 
@@ -297,6 +337,10 @@ export default function AdminCreatorStudioModal({
     setIsSubmitting(true);
     const token = getActiveToken();
     const tags = tagsStr.split(',').map((t) => t.trim()).filter(Boolean);
+
+    const calculatedSlidesCount = format === 'interactive_comic'
+      ? slides.length
+      : (customSlideCount > 0 ? customSlideCount : (deckSlides.length > 0 ? deckSlides.length : (deckPdfUrl ? 1 : 0)));
 
     const payload = {
       title,
@@ -313,7 +357,7 @@ export default function AdminCreatorStudioModal({
       deckPdfUrl: deckPdfUrl.trim() || undefined,
       slides: format === 'interactive_comic' ? slides : [],
       deckSlides: format === 'slide_deck' ? deckSlides : [],
-      slidesCount: format === 'interactive_comic' ? slides.length : deckSlides.length,
+      slidesCount: calculatedSlidesCount,
       publishedAt: 'March 2026'
     };
 
@@ -761,27 +805,55 @@ export default function AdminCreatorStudioModal({
                         </div>
 
                         {/* Secondary: Local File Upload Option */}
-                        <div className="pt-2 border-t border-[#E8E6E0] dark:border-[#2C2B27] space-y-1.5">
+                        <div className="pt-2 border-t border-[#E8E6E0] dark:border-[#2C2B27] space-y-2">
                           <label className="font-mono text-[11px] uppercase text-[#73726E] dark:text-[#9A9890] block">
-                            Or Upload Local PDF / PPT File (Alternative):
+                            Or Upload Local PDF / PPT File (Direct upload up to 95MB):
                           </label>
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 flex-wrap">
                             <input
                               type="file"
-                              accept=".pdf,.ppt,.pptx,.key"
+                              accept=".pdf,.ppt,.pptx,.key,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
                               disabled={isUploadingFile}
                               onChange={(e) => {
                                 const f = e.target.files?.[0];
                                 if (f) handleFileUpload(f, (url) => setDeckPdfUrl(url));
+                                e.target.value = '';
                               }}
                               className="font-mono text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-xs file:border file:border-[#161616] dark:file:border-[#FAF9F5] file:text-xs file:font-mono file:bg-white dark:file:bg-[#141413] file:text-[#161616] dark:file:text-[#FAF9F5] file:cursor-pointer"
                             />
                             {isUploadingFile && (
-                              <span className="font-mono text-xs text-amber-600 dark:text-amber-400 animate-pulse">
-                                Uploading deck...
+                              <span className="font-mono text-xs text-amber-600 dark:text-amber-400 animate-pulse flex items-center gap-1.5">
+                                <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                                {uploadStatus || 'Uploading deck...'}
                               </span>
                             )}
                           </div>
+
+                          {deckPdfUrl && (
+                            <div className="p-2.5 bg-white dark:bg-[#141413] border border-[#E8E6E0] dark:border-[#2C2B27] rounded-xs flex items-center justify-between text-xs font-mono">
+                              <div className="flex items-center gap-2 truncate pr-2">
+                                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">✓ Current Deck:</span>
+                                <span className="truncate text-[#161616] dark:text-[#FAF9F5]">{deckPdfUrl}</span>
+                              </div>
+                              <div className="flex items-center gap-3 shrink-0">
+                                <a
+                                  href={deckPdfUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[#73726E] dark:text-[#9A9890] hover:text-[#161616] dark:hover:text-[#FAF9F5] underline text-[11px]"
+                                >
+                                  Preview ↗
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeckPdfUrl('')}
+                                  className="text-red-500 hover:text-red-700 text-[11px] cursor-pointer"
+                                >
+                                  [Clear]
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -799,18 +871,35 @@ export default function AdminCreatorStudioModal({
                       />
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="font-mono text-xs uppercase text-[#73726E] dark:text-[#9A9890] block">
-                        Reading Time (Minutes)
-                      </label>
-                      <input
-                        type="number"
-                        value={readingTime}
-                        onChange={(e) => setReadingTime(Number(e.target.value))}
-                        min={1}
-                        max={30}
-                        className="w-full bg-white dark:bg-[#1A1918] border border-[#E8E6E0] dark:border-[#2C2B27] px-3 py-2 rounded-xs font-mono text-xs text-[#161616] dark:text-[#FAF9F5]"
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="font-mono text-xs uppercase text-[#73726E] dark:text-[#9A9890] block">
+                          Reading Time (Mins)
+                        </label>
+                        <input
+                          type="number"
+                          value={readingTime}
+                          onChange={(e) => setReadingTime(Number(e.target.value))}
+                          min={1}
+                          max={60}
+                          className="w-full bg-white dark:bg-[#1A1918] border border-[#E8E6E0] dark:border-[#2C2B27] px-3 py-2 rounded-xs font-mono text-xs text-[#161616] dark:text-[#FAF9F5]"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="font-mono text-xs uppercase text-[#73726E] dark:text-[#9A9890] block">
+                          Total Slide Count
+                        </label>
+                        <input
+                          type="number"
+                          value={customSlideCount > 0 ? customSlideCount : (format === 'interactive_comic' ? slides.length : (deckSlides.length > 0 ? deckSlides.length : (deckPdfUrl ? 1 : 0)))}
+                          onChange={(e) => setCustomSlideCount(Math.max(0, Number(e.target.value)))}
+                          min={0}
+                          max={200}
+                          placeholder="e.g. 15"
+                          className="w-full bg-white dark:bg-[#1A1918] border border-[#E8E6E0] dark:border-[#2C2B27] px-3 py-2 rounded-xs font-mono text-xs text-[#161616] dark:text-[#FAF9F5]"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -896,6 +985,7 @@ export default function AdminCreatorStudioModal({
                                 <input
                                   type="file"
                                   accept="image/*"
+                                  disabled={isUploadingFile}
                                   onChange={(e) => {
                                     const file = e.target.files?.[0];
                                     if (file) {
@@ -905,6 +995,7 @@ export default function AdminCreatorStudioModal({
                                         setSlides(next);
                                       });
                                     }
+                                    e.target.value = '';
                                   }}
                                   className="font-mono text-xs"
                                 />
@@ -1042,6 +1133,48 @@ export default function AdminCreatorStudioModal({
                                   rows={3}
                                   className="w-full bg-[#FAF9F5] dark:bg-[#141413] border border-[#E8E6E0] dark:border-[#2C2B27] px-2.5 py-1.5 rounded-xs text-xs font-sans"
                                 />
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="font-mono text-[10px] uppercase text-[#73726E] block">
+                                  Slide Graphic / Diagram / Screenshot (Optional)
+                                </label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    disabled={isUploadingFile}
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) {
+                                        handleFileUpload(file, (url) => {
+                                          const next = [...deckSlides];
+                                          next[idx].imageUrl = url;
+                                          setDeckSlides(next);
+                                        });
+                                      }
+                                      e.target.value = '';
+                                    }}
+                                    className="font-mono text-xs"
+                                  />
+                                </div>
+                                {ds.imageUrl && (
+                                  <div className="flex items-center gap-2 pt-1 font-mono text-[10px]">
+                                    <span className="text-emerald-600 dark:text-emerald-400">Attached Graphic:</span>
+                                    <span className="truncate max-w-xs text-[#73726E] dark:text-[#9A9890]">{ds.imageUrl}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const next = [...deckSlides];
+                                        next[idx].imageUrl = undefined;
+                                        setDeckSlides(next);
+                                      }}
+                                      className="text-red-500 hover:underline cursor-pointer"
+                                    >
+                                      [Remove]
+                                    </button>
+                                  </div>
+                                )}
                               </div>
 
                               <div className="space-y-1">

@@ -337,6 +337,17 @@ export default function SlideDeckViewerModal({
                   </div>
                 )}
 
+                {/* Slide Graphic / Diagram Image */}
+                {currentSlide.imageUrl && (
+                  <div className="w-full border border-[#E8E6E0] dark:border-[#282724] bg-[#FAF9F5] dark:bg-[#141413] rounded-xs overflow-hidden max-h-[460px] flex items-center justify-center p-3">
+                    <img
+                      src={currentSlide.imageUrl}
+                      alt={currentSlide.title}
+                      className="max-h-[430px] w-auto max-w-full object-contain rounded-xs shadow-xs"
+                    />
+                  </div>
+                )}
+
                 {/* Strategic Analysis Bullets */}
                 <div className="space-y-4 pt-2">
                   <div className="font-mono text-xs uppercase tracking-wider text-[#73726E] dark:text-[#9A9890]">

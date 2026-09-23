@@ -64,12 +64,19 @@ function saveCaseStudies(): void {
 
 loadCaseStudies();
 
-// Express body parsers (support up to 50MB for large PDF/PPT presentation uploads)
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Express body parsers (support up to 150MB for large PDF/PPT presentation uploads and high-res screenshots)
+app.use(express.json({ limit: '150mb' }));
+app.use(express.urlencoded({ extended: true, limit: '150mb' }));
 
-// Static uploads serving
-app.use('/uploads', express.static(UPLOADS_DIR));
+// Static uploads serving with correct content disposition for PDF decks
+app.use('/uploads', express.static(UPLOADS_DIR, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.pdf')) {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline');
+    }
+  }
+}));
 
 // Admin authentication middleware
 function requireAdmin(req: Request, res: Response, next: NextFunction): void {
@@ -331,55 +338,70 @@ app.get('/api/admin/storage-status', requireAdmin, (req: Request, res: Response)
 app.post('/api/admin/upload-slide', requireAdmin, async (req: Request, res: Response) => {
   const { dataUrl, fileName } = req.body;
 
-  if (!dataUrl) {
+  if (!dataUrl || typeof dataUrl !== 'string') {
     res.status(400).json({ error: 'File data URL is required' });
     return;
   }
 
   try {
-    const matches = dataUrl.match(/^data:([A-Za-z0-9-+./]+);base64,(.+)$/);
-    if (!matches || matches.length !== 3) {
-      res.status(400).json({ error: 'Invalid data URL format' });
+    const commaIndex = dataUrl.indexOf(',');
+    if (commaIndex === -1) {
+      res.status(400).json({ error: 'Invalid data URL format. Expected "data:...;base64,..."' });
       return;
     }
 
-    let mimeType = matches[1];
-    const base64Data = matches[2];
+    const metaPart = dataUrl.substring(0, commaIndex);
+    const base64Data = dataUrl.substring(commaIndex + 1);
+
+    // Extract mime type safely from meta prefix
+    let mimeType = 'application/octet-stream';
+    const mimeMatch = metaPart.match(/^data:([^;]+)/);
+    if (mimeMatch && mimeMatch[1]) {
+      mimeType = mimeMatch[1].trim().toLowerCase();
+    }
 
     // Determine clean file extension
-    let ext = 'bin';
-    if (fileName && fileName.includes('.')) {
-      ext = fileName.split('.').pop()?.toLowerCase() || 'bin';
-    } else if (mimeType.includes('pdf')) {
-      ext = 'pdf';
-    } else if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) {
-      ext = mimeType.includes('openxml') ? 'pptx' : 'ppt';
-    } else if (mimeType.includes('jpeg') || mimeType.includes('jpg')) {
-      ext = 'jpg';
-    } else if (mimeType.includes('png')) {
-      ext = 'png';
-    } else if (mimeType.includes('webp')) {
-      ext = 'webp';
+    let ext = '';
+    if (fileName && typeof fileName === 'string' && fileName.includes('.')) {
+      ext = fileName.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
+    }
+
+    if (!ext) {
+      if (mimeType.includes('pdf')) ext = 'pdf';
+      else if (mimeType.includes('openxml') || mimeType.includes('presentationml')) ext = 'pptx';
+      else if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) ext = 'ppt';
+      else if (mimeType.includes('jpeg') || mimeType.includes('jpg')) ext = 'jpg';
+      else if (mimeType.includes('png')) ext = 'png';
+      else if (mimeType.includes('webp')) ext = 'webp';
+      else if (mimeType.includes('svg')) ext = 'svg';
+      else ext = 'bin';
     }
 
     const safeBaseName = (fileName || `file_${Date.now()}`)
       .replace(/\.[^/.]+$/, '')
-      .replace(/[^a-zA-Z0-9_-]/g, '_');
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .substring(0, 80);
 
     const finalFileName = `${Date.now()}_${safeBaseName}.${ext}`;
+    if (!fs.existsSync(UPLOADS_DIR)) {
+      fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+    }
     const filePath = path.join(UPLOADS_DIR, finalFileName);
 
-    fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+    const buffer = Buffer.from(base64Data, 'base64');
+    fs.writeFileSync(filePath, buffer);
+    console.log(`[Upload] Saved ${buffer.length} bytes -> ${finalFileName}`);
 
     res.json({
       success: true,
       url: `/uploads/${finalFileName}`,
       fileName: finalFileName,
+      sizeBytes: buffer.length,
       storage: 'local_disk'
     });
-  } catch (err) {
-    console.error('[Upload] Error saving file:', err);
-    res.status(500).json({ error: 'Failed to save uploaded file' });
+  } catch (err: any) {
+    console.error('[Upload] Error saving file:', err?.message || err);
+    res.status(500).json({ error: 'Failed to save uploaded file: ' + (err?.message || 'Disk error') });
   }
 });
 
@@ -392,6 +414,17 @@ app.post('/api/admin/reset-seeds', requireAdmin, (req: Request, res: Response) =
     message: 'Reset all case studies to original initial research seeds.',
     count: caseStudies.length
   });
+});
+
+// Error handling middleware for oversized payloads
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  if (err?.type === 'entity.too.large' || err?.status === 413) {
+    res.status(413).json({
+      error: 'The uploaded file is too large for direct local upload (>100MB). For large presentations or decks, upload to Google Drive and paste the share link instead!'
+    });
+    return;
+  }
+  next(err);
 });
 
 // -------------------------------------------------------------
