@@ -7,16 +7,18 @@ import { InteractiveCaseStudy } from './src/types';
 
 const app = express();
 const PORT = 3000;
-const ADMIN_SECRET = process.env.ADMIN_SECRET_KEY || 'yp_growth_2026';
+const ADMIN_SECRET = 'yash6010';
 const VALID_PASSKEYS = new Set([
+  'yash6010',
   process.env.ADMIN_SECRET_KEY,
   'yash2026',
   'yp_growth_2026'
-].filter(Boolean));
+].filter(Boolean) as string[]);
 
 function isValidAdminKey(key?: string): boolean {
   if (!key) return false;
-  return VALID_PASSKEYS.has(key);
+  const clean = key.trim();
+  return clean === 'yash6010' || VALID_PASSKEYS.has(clean);
 }
 
 // Persistent data directory
@@ -107,7 +109,7 @@ app.get('/api/health', (req: Request, res: Response) => {
 app.get('/api/case-studies', (req: Request, res: Response) => {
   const { format, category, availability } = req.query;
   const headerKey = req.headers['x-admin-key'] as string;
-  const isAdmin = headerKey === ADMIN_SECRET;
+  const isAdmin = isValidAdminKey(headerKey);
 
   let results = [...caseStudies];
 
@@ -178,16 +180,18 @@ app.get('/api/case-studies/:id', (req: Request, res: Response) => {
 // POST /api/admin/login: Authenticate Yash's admin passkey
 app.post('/api/admin/login', (req: Request, res: Response) => {
   const { passcode } = req.body;
-  if (!passcode) {
-    res.status(400).json({ error: 'Passcode is required' });
+  const cleanPasscode = typeof passcode === 'string' ? passcode.trim() : '';
+  if (!cleanPasscode) {
+    res.status(400).json({ error: 'Passcode is required', authenticated: false });
     return;
   }
 
-  if (isValidAdminKey(passcode)) {
+  if (isValidAdminKey(cleanPasscode)) {
     res.json({
       success: true,
+      authenticated: true,
       message: 'Admin access granted to Creator Studio',
-      token: passcode,
+      token: cleanPasscode,
       user: {
         name: 'Yash Patil',
         role: 'Author & Curator'
@@ -196,7 +200,8 @@ app.post('/api/admin/login', (req: Request, res: Response) => {
   } else {
     res.status(401).json({
       success: false,
-      error: 'Incorrect admin passkey. Please enter the correct secret.'
+      authenticated: false,
+      error: 'Incorrect author passcode. Please enter the correct password.'
     });
   }
 });
@@ -314,24 +319,15 @@ app.delete('/api/admin/case-studies/:id', requireAdmin, (req: Request, res: Resp
   });
 });
 
-// GET /api/admin/storage-status: Check current storage engine
+// GET /api/admin/storage-status: Check current storage configuration
 app.get('/api/admin/storage-status', requireAdmin, (req: Request, res: Response) => {
-  const isR2Configured = Boolean(
-    process.env.R2_ACCOUNT_ID &&
-    process.env.R2_ACCESS_KEY_ID &&
-    process.env.R2_SECRET_ACCESS_KEY &&
-    process.env.R2_BUCKET_NAME
-  );
-
   res.json({
-    storageType: isR2Configured ? 'cloudflare_r2' : 'local_disk',
-    r2Configured: isR2Configured,
-    bucket: process.env.R2_BUCKET_NAME || null,
-    publicDomain: process.env.R2_PUBLIC_URL || null,
+    storageType: 'local_disk',
+    googleDriveSupported: true,
   });
 });
 
-// POST /api/admin/upload-slide: Upload slide screenshot, PDF, or presentation deck
+// POST /api/admin/upload-slide: Upload slide screenshot, PDF, or presentation deck locally
 app.post('/api/admin/upload-slide', requireAdmin, async (req: Request, res: Response) => {
   const { dataUrl, fileName } = req.body;
 
@@ -366,47 +362,10 @@ app.post('/api/admin/upload-slide', requireAdmin, async (req: Request, res: Resp
       ext = 'webp';
     }
 
-    // Standardize MIME type for browser reading
-    if (ext === 'pdf') mimeType = 'application/pdf';
-    else if (ext === 'pptx') mimeType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-    else if (ext === 'ppt') mimeType = 'application/vnd.ms-powerpoint';
-    else if (ext === 'png') mimeType = 'image/png';
-    else if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
-    else if (ext === 'webp') mimeType = 'image/webp';
-
     const safeBaseName = (fileName || `file_${Date.now()}`)
       .replace(/\.[^/.]+$/, '')
       .replace(/[^a-zA-Z0-9_-]/g, '_');
 
-    // 1. Try uploading to Cloudflare R2 if configured
-    const r2 = getR2Client();
-    if (r2) {
-      const s3Key = `decks/${Date.now()}_${safeBaseName}.${ext}`;
-      const fileBuffer = Buffer.from(base64Data, 'base64');
-
-      await r2.client.send(new PutObjectCommand({
-        Bucket: r2.bucketName,
-        Key: s3Key,
-        Body: fileBuffer,
-        ContentType: mimeType,
-      }));
-
-      const publicUrl = r2.publicUrlPrefix
-        ? `${r2.publicUrlPrefix}/${s3Key}`
-        : `/api/r2-file/${s3Key}`;
-
-      console.log(`[R2 Storage] Stored "${s3Key}" in bucket "${r2.bucketName}" -> ${publicUrl}`);
-      res.json({
-        success: true,
-        url: publicUrl,
-        fileName: `${safeBaseName}.${ext}`,
-        storage: 'cloudflare_r2',
-        bucket: r2.bucketName
-      });
-      return;
-    }
-
-    // 2. Fallback to local disk storage
     const finalFileName = `${Date.now()}_${safeBaseName}.${ext}`;
     const filePath = path.join(UPLOADS_DIR, finalFileName);
 

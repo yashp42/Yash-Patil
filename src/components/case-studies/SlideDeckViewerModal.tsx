@@ -28,9 +28,15 @@ export default function SlideDeckViewerModal({
 
   // Determine file type and best viewer URL
   const docUrl = caseStudy.deckPdfUrl || '';
-  const isPpt = docUrl.toLowerCase().includes('.ppt') || docUrl.toLowerCase().includes('.pptx');
   
-  // Construct absolute URL for Google/Office viewers if needed
+  // Detect Google Drive, Google Slides, Google Docs, PPT, or native PDF
+  const gDriveMatch = docUrl.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([a-zA-Z0-9_-]+)/i);
+  const gSlidesMatch = docUrl.match(/docs\.google\.com\/presentation\/d\/([a-zA-Z0-9_-]+)/i);
+  const gDocsMatch = docUrl.match(/docs\.google\.com\/document\/d\/([a-zA-Z0-9_-]+)/i);
+  const isPpt = docUrl.toLowerCase().includes('.ppt') || docUrl.toLowerCase().includes('.pptx');
+  const isGoogleSource = Boolean(gDriveMatch || gSlidesMatch || gDocsMatch);
+
+  // Construct absolute URL for standard viewers if needed
   const absoluteDocUrl = docUrl.startsWith('http://') || docUrl.startsWith('https://')
     ? docUrl
     : typeof window !== 'undefined'
@@ -40,18 +46,27 @@ export default function SlideDeckViewerModal({
   const googleViewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(absoluteDocUrl)}&embedded=true`;
   const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absoluteDocUrl)}`;
 
-  // Viewer source:
-  // - If PPT/PPTX: use Office Live viewer or Google Docs Viewer
-  // - If fallback requested: Google Docs viewer
-  // - Otherwise: Direct browser native PDF iframe (fastest, cleanest, supports zoom & pagination)
   let viewerSrc = docUrl;
-  if (isPpt) {
+  let documentReaderLabel = 'Interactive Document Reader';
+
+  if (gSlidesMatch && gSlidesMatch[1]) {
+    viewerSrc = `https://docs.google.com/presentation/d/${gSlidesMatch[1]}/embed?start=false&loop=false&delayms=3000`;
+    documentReaderLabel = 'Google Slides • Interactive Presentation';
+  } else if (gDriveMatch && gDriveMatch[1]) {
+    viewerSrc = `https://drive.google.com/file/d/${gDriveMatch[1]}/preview`;
+    documentReaderLabel = 'Google Drive • Interactive Document Reader';
+  } else if (gDocsMatch && gDocsMatch[1]) {
+    viewerSrc = `https://docs.google.com/document/d/${gDocsMatch[1]}/preview`;
+    documentReaderLabel = 'Google Docs • Document Reader';
+  } else if (isPpt) {
     viewerSrc = officeViewerUrl;
+    documentReaderLabel = 'Office Presentation Reader';
   } else if (useGoogleViewerFallback) {
     viewerSrc = googleViewerUrl;
+    documentReaderLabel = 'Google Docs Web Viewer';
   } else if (docUrl && !docUrl.includes('#')) {
-    // Add PDF parameters for standard desktop/tablet PDF viewers
     viewerSrc = `${docUrl}#view=FitH&toolbar=1&navpanes=0`;
+    documentReaderLabel = 'Native PDF Document Reader';
   }
 
   // Lock body scroll and handle keyboard navigation
@@ -168,17 +183,17 @@ export default function SlideDeckViewerModal({
             </a>
           )}
 
-          {/* Open in new tab */}
+          {/* Open in new tab or Google Drive */}
           {hasDocument && (
             <a
               href={docUrl}
               target="_blank"
               rel="noreferrer"
-              className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xs border border-[#D8D6CE] dark:border-[#33322E] hover:bg-[#EAE7DE] dark:hover:bg-[#282723] text-[#73726E] dark:text-[#9A9890] hover:text-[#161616] dark:hover:text-[#FAF9F5] transition-colors cursor-pointer"
-              title="Open full document in separate tab"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xs border border-[#D8D6CE] dark:border-[#33322E] hover:bg-[#EAE7DE] dark:hover:bg-[#282723] text-[#161616] dark:text-[#FAF9F5] transition-colors cursor-pointer"
+              title={isGoogleSource ? 'Open in Google Drive / Slides' : 'Open in new tab'}
             >
               <ExternalLink className="w-3.5 h-3.5" />
-              <span>Full Screen</span>
+              <span>{isGoogleSource ? 'Open in Google Drive' : 'Full Screen'}</span>
             </a>
           )}
 
@@ -242,13 +257,13 @@ export default function SlideDeckViewerModal({
           <div className="bg-[#1E1E1E] text-[#B0AEA5] border-b border-[#3A3935] px-4 py-1.5 flex items-center justify-between font-mono text-[11px] shrink-0">
             <div className="flex items-center gap-2">
               <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Interactive Document Reader</span>
+              <span className="text-[#FAF9F5] font-medium">{documentReaderLabel}</span>
               <span className="text-[#605F5A]">•</span>
               <span className="text-[#888680] truncate max-w-xs">{caseStudy.title}</span>
             </div>
 
             <div className="flex items-center gap-3">
-              {!isPpt && (
+              {!isPpt && !isGoogleSource && (
                 <button
                   onClick={() => setUseGoogleViewerFallback(!useGoogleViewerFallback)}
                   className="text-[#9A9890] hover:text-[#FAF9F5] underline cursor-pointer"
@@ -273,7 +288,7 @@ export default function SlideDeckViewerModal({
               title={`${caseStudy.company} - ${caseStudy.title}`}
               className="w-full h-full border-0"
               onLoad={() => setIframeLoaded(true)}
-              allow="fullscreen"
+              allow="fullscreen; autoplay"
             />
           </div>
         </div>
