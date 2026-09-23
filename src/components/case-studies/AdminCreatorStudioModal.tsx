@@ -22,9 +22,41 @@ export default function AdminCreatorStudioModal({
   const [passcode, setPasscode] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState('');
-  const [activeTab, setActiveTab] = useState<'manage' | 'editor'>('manage');
+  const [activeTab, setActiveTab] = useState<'manage' | 'editor' | 'quick_links'>('manage');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
+  const [quickDriveLinks, setQuickDriveLinks] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const map: Record<string, string> = {};
+    caseStudies.forEach((cs) => {
+      if (cs.deckPdfUrl) {
+        map[cs.id] = cs.deckPdfUrl;
+      }
+    });
+    setQuickDriveLinks(map);
+  }, [caseStudies]);
+
+  const handleUpdateSingleDriveLink = async (study: InteractiveCaseStudy) => {
+    const newUrl = (quickDriveLinks[study.id] || '').trim();
+    if (!newUrl) {
+      alert('Please enter a valid Google Drive or presentation URL.');
+      return;
+    }
+    const token = getActiveToken();
+    try {
+      const updatedPayload = {
+        ...study,
+        deckPdfUrl: newUrl,
+        downloadDeckUrl: newUrl
+      };
+      await persistCaseStudy(updatedPayload, study.id, token);
+      setNotification(`Updated Drive link for "${study.company}"!`);
+      onRefreshData();
+    } catch {
+      alert('Failed to update Drive link.');
+    }
+  };
 
   // Form State
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -537,10 +569,22 @@ export default function AdminCreatorStudioModal({
                   >
                     + Upload Slide Deck (PDF/PPT)
                   </button>
+
+                  <button
+                    onClick={() => setActiveTab('quick_links')}
+                    className={`px-3 py-1.5 rounded-xs transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      activeTab === 'quick_links'
+                        ? 'bg-[#161616] dark:bg-[#FAF9F5] text-[#FAF9F5] dark:text-[#141413] font-medium'
+                        : 'border border-emerald-300 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100/60'
+                    }`}
+                  >
+                    <span>⚡</span>
+                    <span>Quick Drive Links</span>
+                  </button>
                 </div>
 
                 <div className="font-mono text-xs text-[#73726E] dark:text-[#9A9890]">
-                  Storage: Local Disk JSON
+                  Storage: Unified Sync
                 </div>
               </div>
 
@@ -613,7 +657,104 @@ export default function AdminCreatorStudioModal({
                 </div>
               )}
 
-              {/* TAB 2: EDITOR (CREATE OR EDIT CASE STUDY) */}
+              {/* TAB 2: QUICK DRIVE LINKS HUB */}
+              {activeTab === 'quick_links' && (
+                <div className="space-y-6">
+                  <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/50 rounded-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-serif text-base text-emerald-950 dark:text-emerald-200 font-medium">
+                        Fast Google Drive Link Hub
+                      </h3>
+                      <span className="font-mono text-xs text-emerald-700 dark:text-emerald-400">
+                        {caseStudies.length} Case Studies Pre-Loaded
+                      </span>
+                    </div>
+                    <p className="font-sans text-xs text-emerald-900/80 dark:text-emerald-300/80 leading-relaxed">
+                      All slide breakdowns, titles, and strategic metrics for your hackathon and competition decks are already populated in the codebase! To connect each presentation document, simply set your Google Drive file access to <strong>&ldquo;Anyone with the link can view&rdquo;</strong>, paste the share link into the corresponding field below, and click <strong>&ldquo;Save Link&rdquo;</strong>.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    {caseStudies.map((cs) => {
+                      const currentLink = quickDriveLinks[cs.id] || '';
+                      const isDrive = currentLink.includes('drive.google.com') || currentLink.includes('docs.google.com');
+
+                      return (
+                        <div
+                          key={cs.id}
+                          className="p-4 sm:p-5 bg-white dark:bg-[#1A1918] border border-[#E8E6E0] dark:border-[#282724] rounded-xs space-y-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="px-1.5 py-0.5 bg-[#161616] dark:bg-[#FAF9F5] text-[#FAF9F5] dark:text-[#141413] rounded-xs font-mono text-[10px] font-bold">
+                                  {cs.companyLogo || cs.company.slice(0, 2).toUpperCase()}
+                                </span>
+                                <span className="font-mono text-xs font-semibold text-[#161616] dark:text-[#FAF9F5]">
+                                  {cs.company}
+                                </span>
+                                <span className="text-xs text-[#73726E] dark:text-[#9A9890] font-mono">
+                                  • {cs.category} • {cs.slidesCount || cs.deckSlides?.length || 0} Slides
+                                </span>
+                              </div>
+                              <h4 className="font-serif text-sm sm:text-base text-[#161616] dark:text-[#FAF9F5]">
+                                {cs.title}
+                              </h4>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onPreviewStudy(cs);
+                                onClose();
+                              }}
+                              className="shrink-0 px-2.5 py-1 text-xs font-mono border border-[#D8D6CE] dark:border-[#33322E] hover:bg-[#EAE7DE] dark:hover:bg-[#282723] rounded-xs transition-colors cursor-pointer"
+                            >
+                              Preview Reader ↗
+                            </button>
+                          </div>
+
+                          <div className="space-y-1.5 pt-1">
+                            <label className="font-mono text-[11px] uppercase tracking-wider text-[#73726E] dark:text-[#9A9890] block">
+                              Google Drive / Presentation Share Link
+                            </label>
+                            <div className="flex items-center gap-2 flex-col sm:flex-row">
+                              <input
+                                type="url"
+                                value={currentLink}
+                                onChange={(e) =>
+                                  setQuickDriveLinks((prev) => ({
+                                    ...prev,
+                                    [cs.id]: e.target.value
+                                  }))
+                                }
+                                placeholder="https://drive.google.com/file/d/.../view?usp=sharing"
+                                className="w-full bg-[#FAF9F5] dark:bg-[#141413] border border-[#E8E6E0] dark:border-[#2C2B27] px-3 py-2 rounded-xs font-mono text-xs text-[#161616] dark:text-[#FAF9F5] focus:outline-none focus:border-[#161616] dark:focus:border-[#FAF9F5]"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateSingleDriveLink(cs)}
+                                className="w-full sm:w-auto px-4 py-2 bg-[#161616] dark:bg-[#FAF9F5] text-[#FAF9F5] dark:text-[#141413] font-mono text-xs font-medium rounded-xs hover:opacity-90 transition-opacity shrink-0 cursor-pointer"
+                              >
+                                Save Link
+                              </button>
+                            </div>
+
+                            {isDrive && (
+                              <div className="flex items-center gap-1.5 text-[11px] font-mono text-emerald-700 dark:text-emerald-400 pt-0.5">
+                                <span>✓</span>
+                                <span>Drive link validated • Will stream in interactive reader modal</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: EDITOR (CREATE OR EDIT CASE STUDY) */}
               {activeTab === 'editor' && (
                 <form onSubmit={handleSave} className="space-y-6">
                   <div className="flex items-center justify-between border-b border-[#E8E6E0] dark:border-[#282724] pb-3">
