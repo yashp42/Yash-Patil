@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { InteractiveCaseStudy, DeckSlide } from '../../types';
 import { Download, ExternalLink, FileText, Layers, X, ArrowLeft, ArrowRight, Eye } from 'lucide-react';
+import { resolveDeckUrl } from '../../services/caseStudyStore';
 
 interface SlideDeckViewerModalProps {
   caseStudy: InteractiveCaseStudy;
@@ -12,36 +13,48 @@ export default function SlideDeckViewerModal({
   onClose,
 }: SlideDeckViewerModalProps) {
   const slides: DeckSlide[] = caseStudy.deckSlides || [];
-  const hasDocument = Boolean(caseStudy.deckPdfUrl);
-  
-  // Default to live document viewer if a PDF/PPT deck file is attached; otherwise slide breakdown
   const [activeTab, setActiveTab] = useState<'document' | 'breakdown'>(
-    hasDocument ? 'document' : 'breakdown'
+    caseStudy.deckPdfUrl ? 'document' : 'breakdown'
   );
 
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [showNotes, setShowNotes] = useState(false);
   const [useGoogleViewerFallback, setUseGoogleViewerFallback] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [docUrl, setDocUrl] = useState(caseStudy.deckPdfUrl || '');
 
+  useEffect(() => {
+    if (caseStudy.deckPdfUrl?.startsWith('indexeddb:')) {
+      resolveDeckUrl(caseStudy.deckPdfUrl).then((resolved) => {
+        if (resolved) setDocUrl(resolved);
+      });
+    } else {
+      setDocUrl(caseStudy.deckPdfUrl || '');
+    }
+  }, [caseStudy.deckPdfUrl]);
+
+  const hasDocument = Boolean(docUrl);
   const currentSlide: DeckSlide | undefined = slides[currentSlideIndex];
 
   // Determine file type and best viewer URL
-  const docUrl = caseStudy.deckPdfUrl || '';
-  
-  // Detect Google Drive, Google Slides, Google Docs, PPT, or native PDF
+  const isDataUrl = docUrl.startsWith('data:');
+  const isBlobUrl = docUrl.startsWith('blob:');
+  const isHttpUrl = docUrl.startsWith('http://') || docUrl.startsWith('https://');
+
   const gDriveMatch = docUrl.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([a-zA-Z0-9_-]+)/i);
   const gSlidesMatch = docUrl.match(/docs\.google\.com\/presentation\/d\/([a-zA-Z0-9_-]+)/i);
   const gDocsMatch = docUrl.match(/docs\.google\.com\/document\/d\/([a-zA-Z0-9_-]+)/i);
   const isPpt = docUrl.toLowerCase().includes('.ppt') || docUrl.toLowerCase().includes('.pptx');
   const isGoogleSource = Boolean(gDriveMatch || gSlidesMatch || gDocsMatch);
 
-  // Construct absolute URL for standard viewers if needed
-  const absoluteDocUrl = docUrl.startsWith('http://') || docUrl.startsWith('https://')
+  // Construct absolute URL for standard viewers if needed (do not prefix data: or blob:)
+  const absoluteDocUrl = isHttpUrl
     ? docUrl
-    : typeof window !== 'undefined'
-      ? `${window.location.origin}${docUrl}`
-      : docUrl;
+    : (isDataUrl || isBlobUrl)
+      ? docUrl
+      : typeof window !== 'undefined'
+        ? `${window.location.origin}${docUrl.startsWith('/') ? '' : '/'}${docUrl}`
+        : docUrl;
 
   const googleViewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(absoluteDocUrl)}&embedded=true`;
   const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absoluteDocUrl)}`;
@@ -58,12 +71,15 @@ export default function SlideDeckViewerModal({
   } else if (gDocsMatch && gDocsMatch[1]) {
     viewerSrc = `https://docs.google.com/document/d/${gDocsMatch[1]}/preview`;
     documentReaderLabel = 'Google Docs • Document Reader';
-  } else if (isPpt) {
+  } else if (isPpt && !isDataUrl) {
     viewerSrc = officeViewerUrl;
     documentReaderLabel = 'Office Presentation Reader';
-  } else if (useGoogleViewerFallback) {
+  } else if (useGoogleViewerFallback && !isDataUrl && !isBlobUrl) {
     viewerSrc = googleViewerUrl;
     documentReaderLabel = 'Google Docs Web Viewer';
+  } else if (isDataUrl) {
+    viewerSrc = docUrl;
+    documentReaderLabel = docUrl.includes('pdf') ? 'Interactive PDF Reader' : 'Interactive Presentation Deck';
   } else if (docUrl && !docUrl.includes('#')) {
     viewerSrc = `${docUrl}#view=FitH&toolbar=1&navpanes=0`;
     documentReaderLabel = 'Native PDF Document Reader';

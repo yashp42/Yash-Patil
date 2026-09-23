@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { InteractiveCaseStudy, TeardownSlide, DeckSlide, CaseStudyFormat, CaseStudyAvailability } from '../../types';
+import { uploadPresentationDeck, persistCaseStudy, removeCaseStudy } from '../../services/caseStudyStore';
 
 interface AdminCreatorStudioModalProps {
   isOpen: boolean;
@@ -244,14 +245,9 @@ export default function AdminCreatorStudioModal({
     if (!window.confirm(`Are you sure you want to permanently delete "${titleName}"?`)) return;
     const token = getActiveToken();
     try {
-      const res = await fetch(`/api/admin/case-studies/${id}`, {
-        method: 'DELETE',
-        headers: { 'x-admin-key': token }
-      });
-      if (res.ok) {
-        setNotification(`Deleted "${titleName}".`);
-        onRefreshData();
-      }
+      await removeCaseStudy(id, token);
+      setNotification(`Deleted "${titleName}".`);
+      onRefreshData();
     } catch {
       alert('Failed to delete study.');
     }
@@ -271,60 +267,29 @@ export default function AdminCreatorStudioModal({
     setIsUploadingFile(true);
     setUploadStatus(`Preparing ${file.name} (${sizeMb.toFixed(1)}MB)...`);
 
-    const reader = new FileReader();
+    try {
+      const token = getActiveToken();
+      const result = await uploadPresentationDeck(file, token, (status) => {
+        setUploadStatus(status);
+      });
 
-    reader.onerror = () => {
+      onDone(result.url);
+
+      if (result.isVercelStatic) {
+        setNotification(`Deck "${file.name}" saved in browser storage.`);
+        alert(
+          `✓ File attached successfully for your session!\n\nPro-Tip for Vercel: Because yashpatilme.vercel.app is hosted without a persistent server disk, this presentation file is stored locally in your browser.\n\nTo ensure all your visitors worldwide can view this deck on any device, you can also paste a Google Drive / Google Slides share link!`
+        );
+      } else {
+        setNotification(`Uploaded file: ${file.name}`);
+      }
+    } catch (err: any) {
+      console.error('File upload error:', err);
+      alert('Upload failed: ' + (err?.message || 'Server connection error'));
+    } finally {
       setIsUploadingFile(false);
       setUploadStatus('');
-      alert(`Could not read "${file.name}" from your local disk.`);
-    };
-
-    reader.onload = async () => {
-      try {
-        const dataUrl = reader.result as string;
-        if (!dataUrl) {
-          throw new Error('Empty file content');
-        }
-
-        setUploadStatus(`Uploading ${file.name} (${sizeMb.toFixed(1)}MB)...`);
-        const token = getActiveToken();
-
-        const res = await fetch('/api/admin/upload-slide', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-admin-key': token
-          },
-          body: JSON.stringify({
-            dataUrl,
-            fileName: file.name
-          })
-        });
-
-        const text = await res.text();
-        let data: any = {};
-        try {
-          data = JSON.parse(text);
-        } catch {
-          throw new Error(`Server returned status ${res.status}: ${text.slice(0, 150)}`);
-        }
-
-        if (!res.ok || !data.success || !data.url) {
-          throw new Error(data.error || `Upload failed (status ${res.status})`);
-        }
-
-        onDone(data.url);
-        setNotification(`Uploaded file: ${file.name}`);
-      } catch (err: any) {
-        console.error('File upload error:', err);
-        alert('Upload failed: ' + (err?.message || 'Server connection error'));
-      } finally {
-        setIsUploadingFile(false);
-        setUploadStatus('');
-      }
-    };
-
-    reader.readAsDataURL(file);
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -362,29 +327,13 @@ export default function AdminCreatorStudioModal({
     };
 
     try {
-      const url = editingId ? `/api/admin/case-studies/${editingId}` : '/api/admin/case-studies';
-      const method = editingId ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-key': token
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        setNotification(editingId ? 'Case study updated!' : 'Case study published!');
-        onRefreshData();
-        setActiveTab('manage');
-        resetForm();
-      } else {
-        alert('Error saving: ' + (data.error || 'Failed to save'));
-      }
-    } catch {
-      alert('Network error while saving case study.');
+      await persistCaseStudy(payload, editingId || undefined, token);
+      setNotification(editingId ? 'Case study updated!' : 'Case study published!');
+      onRefreshData();
+      setActiveTab('manage');
+      resetForm();
+    } catch (err: any) {
+      alert('Error saving: ' + (err?.message || 'Failed to save'));
     } finally {
       setIsSubmitting(false);
     }
@@ -455,12 +404,32 @@ export default function AdminCreatorStudioModal({
 
           <div className="flex items-center gap-3 font-mono text-xs">
             {isAuthenticated && (
-              <button
-                onClick={handleLogout}
-                className="text-[#73726E] hover:text-[#161616] dark:hover:text-[#FAF9F5] transition-colors cursor-pointer"
-              >
-                [Logout]
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const dataStr = JSON.stringify(caseStudies, null, 2);
+                    const blob = new Blob([dataStr], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `case-studies-backup-${new Date().toISOString().slice(0, 10)}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    setNotification('Exported case studies backup to JSON.');
+                  }}
+                  className="text-[#73726E] hover:text-[#161616] dark:hover:text-[#FAF9F5] transition-colors cursor-pointer"
+                  title="Export all case studies to JSON backup"
+                >
+                  [Export JSON]
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="text-[#73726E] hover:text-[#161616] dark:hover:text-[#FAF9F5] transition-colors cursor-pointer"
+                >
+                  [Logout]
+                </button>
+              </>
             )}
             <button
               onClick={onClose}

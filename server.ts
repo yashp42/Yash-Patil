@@ -41,7 +41,11 @@ function loadCaseStudies(): void {
   try {
     if (fs.existsSync(DATA_FILE)) {
       const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-      caseStudies = JSON.parse(raw);
+      const loaded: InteractiveCaseStudy[] = JSON.parse(raw);
+      const loadedIds = new Set(loaded.map((cs) => cs.id));
+      const missingSeeds = INITIAL_CASE_STUDIES.filter((cs) => !loadedIds.has(cs.id));
+      caseStudies = [...loaded, ...missingSeeds];
+      fs.writeFileSync(DATA_FILE, JSON.stringify(caseStudies, null, 2), 'utf-8');
       console.log(`[Storage] Loaded ${caseStudies.length} case studies from ${DATA_FILE}`);
     } else {
       caseStudies = [...INITIAL_CASE_STUDIES];

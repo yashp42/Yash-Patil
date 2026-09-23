@@ -89,6 +89,8 @@ export interface ComicHotspot {
   title: string;
   description: string;
   sentiment?: 'positive' | 'warning' | 'critical' | 'insight';
+  impact?: string;
+  metricTag?: string;
 }
 
 export interface ComicBubble {
@@ -123,6 +125,7 @@ export interface TeardownSlide {
     note: string;
   };
   keyTakeaway?: string;
+  psychologyInsight?: string;
 }
 
 export interface DeckSlide {

@@ -3,6 +3,7 @@ import { InteractiveCaseStudy, CaseStudyFormat, CaseStudyAvailability } from '..
 import InteractiveTeardownModal from './InteractiveTeardownModal';
 import SlideDeckViewerModal from './SlideDeckViewerModal';
 import AdminCreatorStudioModal from './AdminCreatorStudioModal';
+import { fetchAllCaseStudies } from '../../services/caseStudyStore';
 
 interface GrowthCaseStudiesPageProps {
   onBackToOverview?: () => void;
@@ -24,21 +25,8 @@ export default function GrowthCaseStudiesPage({ onBackToOverview }: GrowthCaseSt
   const fetchStudies = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/case-studies');
-      const data = await res.json();
-      if (data.success && Array.isArray(data.caseStudies)) {
-        const fullPromises = data.caseStudies.map(async (item: InteractiveCaseStudy) => {
-          try {
-            const detailRes = await fetch(`/api/case-studies/${item.id}`);
-            const detailData = await detailRes.json();
-            return detailData.caseStudy || item;
-          } catch {
-            return item;
-          }
-        });
-        const fullResults = await Promise.all(fullPromises);
-        setCaseStudies(fullResults);
-      }
+      const studies = await fetchAllCaseStudies();
+      setCaseStudies(studies);
     } catch (err) {
       console.error('Failed to load case studies:', err);
     } finally {
