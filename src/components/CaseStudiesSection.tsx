@@ -14,11 +14,13 @@ export default function CaseStudiesSection({ onOpenCaseStudy, onExploreTeardowns
   const [activeCategory, setActiveCategory] = useState<string>('All');
 
   const categories = [
-    { label: 'All', value: 'All' },
-    { label: 'FinTech', value: 'FinTech and Growth Strategy' },
-    { label: 'Strategy', value: 'Corporate Strategy and Product Portfolio' },
+    { label: 'All Projects', value: 'All' },
+    { label: 'FinTech & Growth', value: 'FinTech and Growth Strategy' },
+    { label: 'Corporate Strategy & GTM', value: 'Corporate Strategy and Product Portfolio' },
     { label: 'Product Discovery', value: 'Product Strategy and Discovery' },
     { label: 'Applied AI', value: 'Applied AI and Agriculture' },
+    { label: 'Predictive IoT', value: 'Predictive Systems and Automotive' },
+    { label: 'Economic Policy', value: 'Economic Strategy and Policy' },
   ];
 
   const filteredStudies = activeCategory === 'All'

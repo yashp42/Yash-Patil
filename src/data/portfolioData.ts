@@ -704,6 +704,186 @@ export const PRODUCT_CASE_STUDIES: ProductCaseStudy[] = [
       }
     ],
     tags: ["Predictive Maintenance", "IoT Telematics", "Fleet Operations", "Systems"]
+  },
+  {
+    id: "cs-bikaji-foods-global-expansion",
+    title: "Bikaji Foods: European Expansion and Industry 5.0",
+    subtitle: "Global GTM and Modern Manufacturing Roadmap for Traditional Indian Snacks",
+    competition: "Kshitij 2025: IIT Kharagpur (1st Place Gold)",
+    award: "National Winner • 1st Place Gold",
+    category: "Corporate Strategy and Product Portfolio",
+    role: "Global Strategy and Supply Chain Lead",
+    period: "Jan 2025",
+    overview: "Bikaji Foods is one of India's iconic ethnic snacking conglomerates. We designed a dual-engine growth strategy: an agile Industry 5.0 cognitive manufacturing system paired with an omnichannel GTM to capture high-margin European and UK Indian diaspora grocery channels.",
+    theProblem: "Traditional batch manufacturing creates high labor dependency and seasonal supply bottlenecks, while international export channels face compliance hurdles and distributor fragmentation.",
+    marketAndUserInsights: [
+      {
+        stat: "9%",
+        label: "Ethnic Snack Share",
+        description: "Dominant market position in India ready for diaspora penetration in Europe."
+      },
+      {
+        stat: "30%",
+        label: "YoY Revenue Growth",
+        description: "Proven brand equity ready to scale across modern trade and Q-commerce."
+      },
+      {
+        stat: "85%",
+        label: "Cognitive Efficiency",
+        description: "Targeted operational plant efficiency via Industry 5.0 collaborative robotics."
+      }
+    ],
+    strategicFramework: {
+      frameworkName: "Dual-Engine Global Expansion & Smart Manufacturing",
+      summary: "Harmonizing cognitive manufacturing automation with premiumized export packaging and diaspora retail distribution.",
+      pillars: [
+        {
+          title: "Industry 5.0 Cognitive Plants",
+          description: "Deploying cobots, computer-vision quality inspection, and IoT sensor arrays for zero-defect production."
+        },
+        {
+          title: "European Compliance & GTM",
+          description: "Clean-label formulation, sustainable packaging, and exclusive partnerships with tier-1 UK and EU supermarket chains."
+        },
+        {
+          title: "Omnichannel Harmonization",
+          description: "Bridging rapid 10-minute delivery apps with high-margin direct-to-consumer gifting bundles."
+        }
+      ]
+    },
+    productSolutions: [
+      {
+        phase: "Phase 1",
+        title: "Cognitive Factory Modernization",
+        description: "Automated sorting, visual defect detection, and predictive temperature control across major production lines.",
+        keyDeliverables: [
+          "IoT sensor integration for real-time frying telemetry",
+          "Computer vision defect sorting saving 40% inspection time",
+          "Digital twin plant simulation for batch planning"
+        ]
+      },
+      {
+        phase: "Phase 2",
+        title: "UK & European Diaspora Launch",
+        description: "Secured distribution with diaspora retail networks and Amazon EU with customized vacuum barrier packaging.",
+        keyDeliverables: [
+          "12-month ambient shelf-life barrier packaging",
+          "Compliance audit clearance across EU food standards",
+          "Targeted holiday gifting campaigns"
+        ]
+      }
+    ],
+    unitEconomicsAndImpact: [
+      {
+        metric: "30%",
+        label: "YoY Revenue Growth",
+        description: "Scaled revenue growth across international and modern retail channels.",
+        detail: "Targeting €25M incremental European revenue across 3 fiscal years."
+      },
+      {
+        metric: "40%",
+        label: "Labor Optimization",
+        description: "Reduction in manual handling via cobot packaging lines.",
+        detail: "Cobot automated packaging reducing packaging labor costs by 40%."
+      },
+      {
+        metric: "99.8%",
+        label: "Batch Consistency",
+        description: "Consistent quality control achieved through real-time moisture monitoring.",
+        detail: "Standardized crispness and oil retention across high-speed packaging lines."
+      }
+    ],
+    tags: ["Consumer Goods", "Supply Chain", "Global Strategy", "Manufacturing", "Industry 5.0"]
+  },
+  {
+    id: "cs-carbx-carbon-offsets-platform",
+    title: "CarbX: Democratizing Carbon Offsets for Individuals and Enterprises",
+    subtitle: "Two-Sided Carbon Trading Ecosystem Bridging Verified Credits with Micro-Contributions",
+    competition: "IIT Roorkee E-Summit 2025 (Winner / Runner-Up)",
+    award: "E-Summit Podia Winner",
+    category: "Corporate Strategy and Product Portfolio",
+    role: "Product Strategy and Tokenomics Architect",
+    period: "Feb 2025",
+    overview: "Voluntary carbon markets are plagued by greenwashing, high transaction fees, and corporate opacity, while individual consumers have no accessible way to offset their daily footprint. CarbX architected a dual-sided platform: CarbX Pulse (gamified B2C micro-offsetting) and CarbX Core (verified B2B retirement ledger).",
+    theProblem: "Traditional carbon credit purchases require minimum purchases of thousands of dollars with murky verification trails. Consumers want transparency, while enterprises need auditable compliance without prohibitive intermediary broker fees.",
+    marketAndUserInsights: [
+      {
+        stat: "$250B",
+        label: "Market Projection",
+        description: "Voluntary carbon market expanding from $2.5B to $250B by 2050."
+      },
+      {
+        stat: "933%",
+        label: "Projected ROI",
+        description: "Modeled five-year capital efficiency from dual-engine transactional brokerage."
+      },
+      {
+        stat: "10.4x",
+        label: "LTV to CAC",
+        description: "High organic retention through habit-forming micro-action gamification."
+      }
+    ],
+    strategicFramework: {
+      frameworkName: "Two-Sided Trust & Micro-Offset Engine",
+      summary: "Decentralized verification and micro-credit fractionalization connecting individual habits with certified carbon projects.",
+      pillars: [
+        {
+          title: "Micro-Credit Fractionalization",
+          description: "Allowing users to offset as little as 1 kg of CO2 from rideshare and e-commerce checkouts."
+        },
+        {
+          title: "Verra & Gold Standard Verification",
+          description: "Every credit is pegged to satellite-verified afforestation and renewable projects."
+        },
+        {
+          title: "B2B Auditable Ledger",
+          description: "Instant retirement certificates for enterprise ESG reporting."
+        }
+      ]
+    },
+    productSolutions: [
+      {
+        phase: "CarbX Pulse (B2C)",
+        title: "Consumer Mobile App & Checkout APIs",
+        description: "Integrates with food delivery, ride-hailing, and flight booking to calculate and offset transactional carbon in real-time.",
+        keyDeliverables: [
+          "One-tap carbon offset widget for checkout SDKs",
+          "Gamified impact streak badges and social leaderboards",
+          "Personalized footprint tracker connected to bank accounts"
+        ]
+      },
+      {
+        phase: "CarbX Core (B2B)",
+        title: "Enterprise Offset Treasury",
+        description: "Automated carbon retirement portal providing CFOs with immutable ESG compliance documentation.",
+        keyDeliverables: [
+          "Real-time offset portfolio tracking dashboard",
+          "Automated quarterly SEC and EU CSRD reporting exports",
+          "Bulk forward-contract purchasing for renewable credits"
+        ]
+      }
+    ],
+    unitEconomicsAndImpact: [
+      {
+        metric: "933%",
+        label: "Return on Investment",
+        description: "Modeled five-year enterprise platform capital efficiency.",
+        detail: "Break-even achieved in Month 14 through 2.5% transaction brokerage margin."
+      },
+      {
+        metric: "$0.02",
+        label: "Per-Transaction Fee",
+        description: "Ultra-low friction micro-offsetting costs for consumer checkouts.",
+        detail: "Embedded checkout API cost structured for high-volume conversion."
+      },
+      {
+        metric: "100%",
+        label: "Audit Traceability",
+        description: "Immutable digital provenance from project origin to retirement.",
+        detail: "Satellite verification prevents double-counting across secondary markets."
+      }
+    ],
+    tags: ["Climate Tech", "FinTech", "Product Strategy", "Carbon Markets", "ESG"]
   }
 ];
 

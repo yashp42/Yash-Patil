@@ -32,11 +32,16 @@ function MainPortfolio() {
   const [activeCaseStudyId, setActiveCaseStudyId] = useState<string | null>(null);
   const [activeArticle, setActiveArticle] = useState<SubstackPost | null>(null);
 
-  // Sync view with hash route
+  // Sync view with hash route or pathname
   useEffect(() => {
-    const handleHashChange = () => {
+    const handleLocationChange = () => {
       const hash = window.location.hash.toLowerCase();
-      if (hash.startsWith('#/case-studies') || hash === '#case-studies-page') {
+      const pathname = window.location.pathname.toLowerCase();
+      if (
+        hash.startsWith('#/case-studies') ||
+        hash === '#case-studies-page' ||
+        pathname.includes('case-studies')
+      ) {
         setCurrentView('case-studies');
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
@@ -44,9 +49,13 @@ function MainPortfolio() {
       }
     };
 
-    handleHashChange();
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    handleLocationChange();
+    window.addEventListener('hashchange', handleLocationChange);
+    window.addEventListener('popstate', handleLocationChange);
+    return () => {
+      window.removeEventListener('hashchange', handleLocationChange);
+      window.removeEventListener('popstate', handleLocationChange);
+    };
   }, []);
 
   const navigateTo = (view: 'home' | 'case-studies') => {

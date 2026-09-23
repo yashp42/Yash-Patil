@@ -59,9 +59,41 @@ export function getLocalSavedStudies(): InteractiveCaseStudy[] {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw);
+      const parsed: InteractiveCaseStudy[] = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        // Map of cached studies by ID
+        const parsedMap = new Map(parsed.map((p) => [p.id, p]));
+
+        // Ensure all INITIAL_CASE_STUDIES are present and retain their rich slides/details
+        const merged: InteractiveCaseStudy[] = INITIAL_CASE_STUDIES.map((seed) => {
+          const cached = parsedMap.get(seed.id);
+          if (cached) {
+            return {
+              ...seed,
+              ...cached,
+              deckPdfUrl: cached.deckPdfUrl || seed.deckPdfUrl,
+              deckSlides: (cached.deckSlides && cached.deckSlides.length > 0) ? cached.deckSlides : seed.deckSlides,
+              slides: (cached.slides && cached.slides.length > 0) ? cached.slides : seed.slides,
+              keyMetrics: (cached.keyMetrics && cached.keyMetrics.length > 0) ? cached.keyMetrics : seed.keyMetrics,
+            };
+          }
+          return seed;
+        });
+
+        // Add any custom case studies created by the user not in INITIAL_CASE_STUDIES
+        const seedIds = new Set(INITIAL_CASE_STUDIES.map((s) => s.id));
+        parsed.forEach((item) => {
+          if (!seedIds.has(item.id)) {
+            merged.push(item);
+          }
+        });
+
+        // Cache the merged list back
+        try {
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(merged));
+        } catch {}
+
+        return merged;
       }
     }
   } catch (e) {

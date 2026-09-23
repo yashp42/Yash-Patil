@@ -4,6 +4,7 @@ import InteractiveTeardownModal from './InteractiveTeardownModal';
 import SlideDeckViewerModal from './SlideDeckViewerModal';
 import AdminCreatorStudioModal from './AdminCreatorStudioModal';
 import { fetchAllCaseStudies } from '../../services/caseStudyStore';
+import { INITIAL_CASE_STUDIES } from '../../data/initialCaseStudies';
 
 interface GrowthCaseStudiesPageProps {
   onBackToOverview?: () => void;
@@ -26,9 +27,14 @@ export default function GrowthCaseStudiesPage({ onBackToOverview }: GrowthCaseSt
     try {
       setLoading(true);
       const studies = await fetchAllCaseStudies();
-      setCaseStudies(studies);
+      if (studies && studies.length > 0) {
+        setCaseStudies(studies);
+      } else {
+        setCaseStudies(INITIAL_CASE_STUDIES);
+      }
     } catch (err) {
       console.error('Failed to load case studies:', err);
+      setCaseStudies(INITIAL_CASE_STUDIES);
     } finally {
       setLoading(false);
     }

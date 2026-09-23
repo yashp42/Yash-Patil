@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { X, ArrowLeft, ArrowRight, CheckCircle2, TrendingUp, Target, BarChart2 } from 'lucide-react';
 import { PRODUCT_CASE_STUDIES } from '../data/portfolioData';
+import { INITIAL_CASE_STUDIES } from '../data/initialCaseStudies';
 
 interface CaseStudyModalProps {
   caseStudyId: string;
@@ -15,6 +16,15 @@ export default function CaseStudyModal({
 }: CaseStudyModalProps) {
   const caseStudy = PRODUCT_CASE_STUDIES.find(cs => cs.id === caseStudyId);
   const currentIndex = PRODUCT_CASE_STUDIES.findIndex(cs => cs.id === caseStudyId);
+  
+  const correspondingInteractive = caseStudy
+    ? INITIAL_CASE_STUDIES.find(
+        (ics) =>
+          ics.id === caseStudy.id ||
+          ics.title.toLowerCase().includes(caseStudy.title.slice(0, 15).toLowerCase()) ||
+          ics.company.toLowerCase().includes(caseStudy.title.slice(0, 10).toLowerCase())
+      )
+    : null;
 
   useEffect(() => {
     const originalStyle = window.getComputedStyle(document.body).overflow;
@@ -109,6 +119,27 @@ export default function CaseStudyModal({
                 <span className="text-[#161616] dark:text-[#FAF9F5] font-medium">Timeline:</span> {caseStudy.period}
               </div>
             </div>
+
+            {correspondingInteractive && (
+              <div className="mt-5 p-4 bg-emerald-50/70 dark:bg-emerald-950/25 border border-emerald-200 dark:border-emerald-800/60 rounded-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-emerald-800 dark:text-emerald-300">
+                    <span>⚡</span>
+                    <span>Full Interactive Strategy Deck Available</span>
+                  </div>
+                  <p className="text-xs font-sans text-emerald-900/80 dark:text-emerald-300/80">
+                    Includes {correspondingInteractive.slidesCount || correspondingInteractive.deckSlides?.length || 0} annotated presentation slides with strategic highlights and takeaways.
+                  </p>
+                </div>
+                <a
+                  href="#/case-studies"
+                  onClick={() => onClose()}
+                  className="shrink-0 px-4 py-2 bg-[#161616] dark:bg-[#FAF9F5] text-[#FAF9F5] dark:text-[#141413] rounded-xs font-mono text-xs font-medium hover:opacity-90 transition-opacity text-center cursor-pointer"
+                >
+                  Open Slides Viewer →
+                </a>
+              </div>
+            )}
           </div>
 
           {/* Executive Overview */}
