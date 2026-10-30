@@ -204,90 +204,89 @@ export default function SubstackSection({ onOpenArticle }: SubstackSectionProps)
                   scale: 1.01,
                   transition: { duration: 0.25, ease: EDITORIAL_EASE }
                 }}
-                className="group p-8 md:p-12 bg-white dark:bg-[#1B1A18] border-2 border-[#161616] dark:border-[#3D3A34] rounded-sm transition-shadow duration-300 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.09)] dark:hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.5)]"
+                className="group p-6 sm:p-8 md:p-10 lg:p-12 bg-white dark:bg-[#1B1A18] border-2 border-[#161616] dark:border-[#3D3A34] rounded-sm transition-shadow duration-300 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.09)] dark:hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.5)]"
               >
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                  <div className="lg:col-span-8 flex flex-col justify-between h-full">
-                    <div>
-                      {/* Meta Tags Row */}
-                      <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-[#73726E] dark:text-[#9A9890] mb-4">
-                        <span className="px-2 py-0.5 bg-[#E05338]/10 dark:bg-[#E05338]/20 text-[#E05338] rounded-xs font-semibold">
-                          FEATURED ESSAY
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5" />
-                          {featuredPost.formattedDate}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" />
-                          {featuredPost.readingTimeMinutes} min read
-                        </span>
-                      </div>
+                {/* Original Banner-Sized Cover Page (Uncropped, Full Dimensions) */}
+                {featuredPost.coverImage && (
+                  <div
+                    onClick={() => onOpenArticle(featuredPost)}
+                    className="w-full cursor-pointer overflow-hidden rounded-xs border border-[#E6E3DB] dark:border-[#2C2B27] bg-[#0F0E0D] mb-8 relative"
+                  >
+                    <img
+                      src={featuredPost.coverImage}
+                      alt={featuredPost.title}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-auto aspect-[2056/765] object-contain sm:object-cover group-hover:scale-[1.012] transition-transform duration-500"
+                      loading="lazy"
+                    />
+                  </div>
+                )}
 
-                      {/* Title */}
-                      <h3
-                        onClick={() => onOpenArticle(featuredPost)}
-                        className="font-serif text-3xl sm:text-4xl md:text-5xl text-[#161616] dark:text-[#FAF9F5] group-hover:text-[#000] dark:group-hover:text-white cursor-pointer transition-colors leading-[1.15]"
-                      >
-                        {featuredPost.title}
-                      </h3>
-
-                      {/* Excerpt */}
-                      <p className="font-sans text-base sm:text-lg text-[#52504C] dark:text-[#C5C3B8] mt-6 leading-relaxed">
-                        {featuredPost.excerpt}
-                      </p>
+                {/* Article Content & Metadata */}
+                <div className="flex flex-col justify-between">
+                  <div>
+                    {/* Meta Tags Row */}
+                    <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-[#73726E] dark:text-[#9A9890] mb-4">
+                      <span className="px-2 py-0.5 bg-[#E05338]/10 dark:bg-[#E05338]/20 text-[#E05338] rounded-xs font-semibold">
+                        FEATURED ESSAY
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {featuredPost.formattedDate}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" />
+                        {featuredPost.readingTimeMinutes} min read
+                      </span>
                     </div>
 
-                    {/* Actions & Tags */}
-                    <div className="mt-8 pt-6 border-t border-[#EAE8E2] dark:border-[#262522] flex flex-wrap items-center justify-between gap-4">
-                      <div className="flex flex-wrap gap-1.5">
-                        {featuredPost.tags.map(tag => (
-                          <span
-                            key={tag}
-                            className="px-2.5 py-0.5 bg-[#F6F4ED] dark:bg-[#23221F] text-[#52504C] dark:text-[#B5B3A8] font-mono text-[11px] rounded-xs"
-                          >
-                            #{tag}
-                          </span>
-                        ))}
-                      </div>
+                    {/* Title */}
+                    <h3
+                      onClick={() => onOpenArticle(featuredPost)}
+                      className="font-serif text-3xl sm:text-4xl md:text-5xl text-[#161616] dark:text-[#FAF9F5] group-hover:text-[#000] dark:group-hover:text-white cursor-pointer transition-colors leading-[1.15]"
+                    >
+                      {featuredPost.title}
+                    </h3>
 
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => onOpenArticle(featuredPost)}
-                          className="px-4 py-2 bg-[#161616] dark:bg-[#FAF9F5] hover:bg-[#333] dark:hover:bg-[#EAE8E0] text-[#FAF9F5] dark:text-[#141413] text-xs font-mono rounded-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <BookOpen className="w-3.5 h-3.5" />
-                          <span>Read On Site</span>
-                        </button>
-
-                        <a
-                          href={featuredPost.link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-4 py-2 border border-[#D8D6CE] hover:border-[#161616] dark:border-[#33322E] dark:hover:border-[#FAF9F5] text-[#161616] dark:text-[#FAF9F5] text-xs font-mono rounded-xs transition-colors flex items-center gap-1.5"
-                        >
-                          <span>Substack</span>
-                          <ArrowUpRight className="w-3.5 h-3.5 text-[#E05338]" />
-                        </a>
-                      </div>
-                    </div>
+                    {/* Excerpt */}
+                    <p className="font-sans text-base sm:text-lg text-[#52504C] dark:text-[#C5C3B8] mt-6 leading-relaxed max-w-4xl">
+                      {featuredPost.excerpt}
+                    </p>
                   </div>
 
-                  {/* Optional Featured Image */}
-                  {featuredPost.coverImage && (
-                    <div
-                      onClick={() => onOpenArticle(featuredPost)}
-                      className="lg:col-span-4 cursor-pointer overflow-hidden rounded-xs border border-[#E6E3DB] dark:border-[#2C2B27] bg-[#F2EFE8] dark:bg-[#201F1C]"
-                    >
-                      <img
-                        src={featuredPost.coverImage}
-                        alt={featuredPost.title}
-                        referrerPolicy="no-referrer"
-                        className="w-full h-64 lg:h-80 object-cover group-hover:scale-105 transition-transform duration-500"
-                        loading="lazy"
-                      />
+                  {/* Actions & Tags */}
+                  <div className="mt-8 pt-6 border-t border-[#EAE8E2] dark:border-[#262522] flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex flex-wrap gap-1.5">
+                      {featuredPost.tags.map(tag => (
+                        <span
+                          key={tag}
+                          className="px-2.5 py-0.5 bg-[#F6F4ED] dark:bg-[#23221F] text-[#52504C] dark:text-[#B5B3A8] font-mono text-[11px] rounded-xs"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
                     </div>
-                  )}
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => onOpenArticle(featuredPost)}
+                        className="px-4 py-2 bg-[#161616] dark:bg-[#FAF9F5] hover:bg-[#333] dark:hover:bg-[#EAE8E0] text-[#FAF9F5] dark:text-[#141413] text-xs font-mono rounded-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <BookOpen className="w-3.5 h-3.5" />
+                        <span>Read On Site</span>
+                      </button>
+
+                      <a
+                        href={featuredPost.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 border border-[#D8D6CE] hover:border-[#161616] dark:border-[#33322E] dark:hover:border-[#FAF9F5] text-[#161616] dark:text-[#FAF9F5] text-xs font-mono rounded-xs transition-colors flex items-center gap-1.5"
+                      >
+                        <span>Substack</span>
+                        <ArrowUpRight className="w-3.5 h-3.5 text-[#E05338]" />
+                      </a>
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -314,6 +313,22 @@ export default function SubstackSection({ onOpenArticle }: SubstackSectionProps)
                   className="group flex flex-col justify-between p-6 bg-white dark:bg-[#1B1A18] border border-[#E6E3DB] dark:border-[#2C2B27] hover:border-[#161616] dark:hover:border-[#FAF9F5] rounded-sm transition-colors duration-300 hover:shadow-[0_12px_28px_-10px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_12px_28px_-10px_rgba(0,0,0,0.5)]"
                 >
                   <div>
+                    {/* Optional Post Cover Banner */}
+                    {post.coverImage && (
+                      <div
+                        onClick={() => onOpenArticle(post)}
+                        className="w-full aspect-[16/9] overflow-hidden rounded-xs border border-[#E6E3DB] dark:border-[#2C2B27] mb-4 bg-[#0F0E0D] cursor-pointer"
+                      >
+                        <img
+                          src={post.coverImage}
+                          alt={post.title}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          loading="lazy"
+                        />
+                      </div>
+                    )}
+
                     {/* Date & Time */}
                     <div className="flex items-center justify-between font-mono text-[11px] text-[#73726E] dark:text-[#9A9890] mb-3">
                       <span>{post.formattedDate}</span>

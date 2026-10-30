@@ -98,12 +98,12 @@ export default function ArticleModal({ post, onClose }: ArticleModalProps) {
 
         {/* Optional Cover Image */}
         {post.coverImage && (
-          <div className="my-10 rounded-sm overflow-hidden border border-[#E0DDD5] dark:border-[#2C2B27]">
+          <div className="my-10 rounded-xs overflow-hidden border border-[#E0DDD5] dark:border-[#2C2B27] bg-[#0E0E0D]">
             <img
               src={post.coverImage}
               alt={post.title}
               referrerPolicy="no-referrer"
-              className="w-full h-auto max-h-[460px] object-cover"
+              className="w-full h-auto aspect-[2056/765] object-contain sm:object-cover"
             />
           </div>
         )}
