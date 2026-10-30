@@ -10,7 +10,7 @@ import {
 import { motion } from 'motion/react';
 import { SubstackPost } from '../types';
 import { SUBSTACK_POSTS, PERSONAL_INFO } from '../data/portfolioData';
-import { fetchSubstackFeed } from '../services/substackService';
+import { fetchSubstackFeed, CACHE_TIME_KEY, clearSubstackCache } from '../services/substackService';
 
 const EDITORIAL_EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -40,7 +40,7 @@ export default function SubstackSection({ onOpenArticle }: SubstackSectionProps)
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date>(() => {
     try {
-      const saved = localStorage.getItem('yash_substack_cache_time_v4');
+      const saved = localStorage.getItem(CACHE_TIME_KEY);
       if (saved) {
         const parsed = parseInt(saved, 10);
         if (!isNaN(parsed) && parsed > 0) return new Date(parsed);
@@ -54,6 +54,7 @@ export default function SubstackSection({ onOpenArticle }: SubstackSectionProps)
 
   const syncFeed = async (force = false) => {
     if (force) {
+      clearSubstackCache();
       setIsRefreshing(true);
       setSyncFeedback('Syncing...');
     }
@@ -65,12 +66,12 @@ export default function SubstackSection({ onOpenArticle }: SubstackSectionProps)
         const now = new Date();
         setLastUpdated(now);
         try {
-          localStorage.setItem('yash_substack_cache_time_v4', now.getTime().toString());
+          localStorage.setItem(CACHE_TIME_KEY, now.getTime().toString());
         } catch (_) {}
 
         if (force) {
-          setSyncFeedback('Feed Updated');
-          setTimeout(() => setSyncFeedback(null), 3000);
+          setSyncFeedback(`✓ ${result.posts.length} Essays Synced`);
+          setTimeout(() => setSyncFeedback(null), 3500);
         }
       }
     } catch {

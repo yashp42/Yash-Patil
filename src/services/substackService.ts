@@ -94,17 +94,24 @@ export function formatPostDate(dateStr: string): string {
   }
 }
 
-const CACHE_KEY = 'yash_substack_posts_cache_v4';
-const CACHE_TIME_KEY = 'yash_substack_cache_time_v4';
-const CACHE_TTL_MS = 1000 * 60 * 15; // 15 minutes
+export const CACHE_KEY = 'yash_substack_posts_cache_v5';
+export const CACHE_TIME_KEY = 'yash_substack_cache_time_v5';
+const CACHE_TTL_MS = 1000 * 60 * 10; // 10 minutes
+
+export function clearSubstackCache(): void {
+  try {
+    localStorage.removeItem(CACHE_KEY);
+    localStorage.removeItem(CACHE_TIME_KEY);
+    localStorage.removeItem('yash_substack_posts_cache_v4');
+    localStorage.removeItem('yash_substack_cache_time_v4');
+    localStorage.removeItem('yash_substack_posts_cache_v3');
+    localStorage.removeItem('yash_substack_posts_cache_v2');
+    localStorage.removeItem('yash_substack_posts_cache');
+  } catch (_) {}
+}
 
 // Clean up any legacy cache versions
-try {
-  localStorage.removeItem('yash_substack_posts_cache');
-  localStorage.removeItem('yash_substack_posts_cache_v2');
-  localStorage.removeItem('yash_substack_posts_cache_v3');
-  localStorage.removeItem('yash_substack_cache_time_v2');
-} catch (_) {}
+clearSubstackCache();
 
 function mergeAndSortPosts(fetched: SubstackPost[], baseline: SubstackPost[]): SubstackPost[] {
   const map = new Map<string, SubstackPost>();
@@ -235,7 +242,42 @@ export async function fetchSubstackFeed(
   const timestamp = Date.now();
   const cacheBustedFeedUrl = `${feedUrl}?t=${timestamp}`;
 
-  // 1. Try rss2json proxy with cache-busting
+  // 1. Primary: High-reliability Internal Server Endpoint (Zero CORS, native XML parsing, direct access)
+  try {
+    const internalUrl = `/api/substack-feed?url=${encodeURIComponent(feedUrl)}&force=${forceRefresh ? 'true' : 'false'}&t=${timestamp}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+    const response = await fetch(internalUrl, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success && Array.isArray(data.posts) && data.posts.length > 0) {
+        const merged = mergeAndSortPosts(data.posts, SUBSTACK_POSTS);
+
+        // Update local cache
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(merged));
+          localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
+        } catch (_) {}
+
+        return {
+          posts: merged,
+          feedInfo: data.feedInfo || {
+            title: `${handle}'s Substack`,
+            link: cleanUrl,
+            description: 'Product decisions, consumer behavior and business models.'
+          },
+          isLive: true
+        };
+      }
+    }
+  } catch (err) {
+    console.info('Internal /api/substack-feed unreachable, falling back to public proxies:', err);
+  }
+
+  // 2. Secondary Fallback: rss2json proxy with cache-busting
   try {
     const proxyUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(cacheBustedFeedUrl)}`;
     const controller = new AbortController();

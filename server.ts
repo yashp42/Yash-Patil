@@ -185,6 +185,221 @@ app.get('/api/case-studies/:id', (req: Request, res: Response) => {
 });
 
 // -------------------------------------------------------------
+// SUBSTACK RSS FEED PROXY & PARSER
+// -------------------------------------------------------------
+interface SubstackParsedPost {
+  id: string;
+  title: string;
+  slug: string;
+  link: string;
+  pubDate: string;
+  formattedDate: string;
+  readingTimeMinutes: number;
+  excerpt: string;
+  contentHtml: string;
+  tags: string[];
+  coverImage?: string;
+  isFeatured: boolean;
+}
+
+let substackFeedCache: {
+  url: string;
+  timestamp: number;
+  posts: SubstackParsedPost[];
+  feedInfo: { title: string; link: string; description: string };
+} | null = null;
+
+const SUBSTACK_CACHE_TTL_MS = 1000 * 60 * 3; // 3 minutes
+
+function formatPostDateServer(dateStr: string): string {
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+function calculateReadingTimeServer(text: string): number {
+  if (!text) return 4;
+  const clean = text.replace(/<[^>]*>/g, ' ');
+  const words = clean.trim().split(/\s+/).filter(Boolean).length;
+  const minutes = Math.ceil(words / 220);
+  return Math.max(2, minutes);
+}
+
+function derivePostTags(title: string, desc: string, categories: string[]): string[] {
+  if (categories && categories.length > 0) {
+    return categories.slice(0, 3);
+  }
+  const combined = (title + ' ' + desc).toLowerCase();
+  if (combined.includes('apple') || combined.includes('pay') || combined.includes('payment') || combined.includes('card')) {
+    return ['Apple Ecosystem', 'Fintech & Payments', 'India Strategy'];
+  }
+  if (combined.includes('consumer ai') || combined.includes('126 billion') || combined.includes('download')) {
+    return ['Consumer AI', 'India Strategy', 'Monetisation'];
+  }
+  if (combined.includes('hardest one to leave') || combined.includes('valuable ai') || combined.includes('retention') || combined.includes('ecosystem')) {
+    return ['AI Moats', 'Consumer Psychology', 'Ecosystem Strategy'];
+  }
+  return ['Product Strategy', 'Consumer Behavior'];
+}
+
+function parseSubstackXml(xmlText: string, defaultFeedUrl: string) {
+  const itemMatches = xmlText.split(/<item>/i).slice(1);
+  const posts: SubstackParsedPost[] = [];
+
+  // Channel title & description
+  const channelBlock = xmlText.split(/<item>/i)[0] || '';
+  const channelTitleMatch = channelBlock.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>|<title>(.*?)<\/title>/i);
+  const channelDescMatch = channelBlock.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>|<description>(.*?)<\/description>/i);
+  const channelLinkMatch = channelBlock.match(/<link>(.*?)<\/link>/i);
+
+  const feedInfo = {
+    title: (channelTitleMatch ? (channelTitleMatch[1] || channelTitleMatch[2]) : "Yash's Substack").trim(),
+    link: (channelLinkMatch ? channelLinkMatch[1] : defaultFeedUrl.replace(/\/feed\/?$/, '')).trim(),
+    description: (channelDescMatch ? (channelDescMatch[1] || channelDescMatch[2]) : 'Product decisions, consumer behavior and business models.').trim()
+  };
+
+  for (let idx = 0; idx < itemMatches.length; idx++) {
+    const itemBlock = itemMatches[idx].split(/<\/item>/i)[0];
+    const getCdataOrText = (tag: string) => {
+      const regex = new RegExp('<' + tag + '[^>]*>(?:<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>|([\\s\\S]*?))<\\/' + tag + '>', 'i');
+      const match = itemBlock.match(regex);
+      if (!match) return '';
+      return (match[1] !== undefined ? match[1] : match[2] || '').trim();
+    };
+
+    const title = getCdataOrText('title') || 'Untitled Essay';
+    const link = getCdataOrText('link') || feedInfo.link;
+    const pubDate = getCdataOrText('pubDate') || new Date().toISOString();
+    const guid = getCdataOrText('guid') || link;
+    const description = getCdataOrText('description');
+    const content = getCdataOrText('content:encoded') || description;
+
+    const enclosureMatch = itemBlock.match(/<enclosure[^>]+url=["\x27]([^"\x27]+)["\x27]/i);
+    let coverImage = enclosureMatch ? enclosureMatch[1] : undefined;
+    if (!coverImage) {
+      const imgMatch = content.match(/<img[^>]+src=["\x27]([^"\x27]+)["\x27]/i);
+      if (imgMatch) coverImage = imgMatch[1];
+    }
+
+    const categories: string[] = [];
+    const catRegex = /<category[^>]*>(?:<!\[CDATA\[([\s\S]*?)\]\]>|([\s\S]*?))<\/category>/gi;
+    let cm;
+    while ((cm = catRegex.exec(itemBlock)) !== null) {
+      const c = (cm[1] !== undefined ? cm[1] : cm[2] || '').trim();
+      if (c && !categories.includes(c)) categories.push(c);
+    }
+
+    const slug = link.includes('/p/') ? link.split('/p/')[1].replace(/\/$/, '') : title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const id = guid.startsWith('http') ? `sub-${slug}` : guid;
+
+    const cleanExcerpt = description
+      ? description.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180) + '...'
+      : 'Read the latest essay on Yash’s Substack publication.';
+
+    posts.push({
+      id,
+      title,
+      slug,
+      link,
+      pubDate,
+      formattedDate: formatPostDateServer(pubDate),
+      readingTimeMinutes: calculateReadingTimeServer(content),
+      excerpt: cleanExcerpt,
+      contentHtml: content,
+      tags: derivePostTags(title, cleanExcerpt, categories),
+      coverImage,
+      isFeatured: idx === 0
+    });
+  }
+
+  return { posts, feedInfo };
+}
+
+// GET /api/substack-feed: Real-time Substack RSS feed fetcher and parser
+app.get('/api/substack-feed', async (req: Request, res: Response) => {
+  const targetUrl = (typeof req.query.url === 'string' && req.query.url.trim())
+    ? req.query.url.trim()
+    : 'https://patilyash.substack.com/feed';
+  const force = req.query.force === 'true' || req.query.refresh === 'true';
+
+  if (!force && substackFeedCache && substackFeedCache.url === targetUrl) {
+    const age = Date.now() - substackFeedCache.timestamp;
+    if (age < SUBSTACK_CACHE_TTL_MS) {
+      res.setHeader('Cache-Control', 'public, max-age=180');
+      res.json({
+        success: true,
+        source: 'server_cache',
+        total: substackFeedCache.posts.length,
+        posts: substackFeedCache.posts,
+        feedInfo: substackFeedCache.feedInfo,
+        lastUpdated: new Date(substackFeedCache.timestamp).toISOString()
+      });
+      return;
+    }
+  }
+
+  try {
+    const fetchResponse = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8'
+      }
+    });
+
+    if (!fetchResponse.ok) {
+      throw new Error(`Substack returned HTTP ${fetchResponse.status}`);
+    }
+
+    const xml = await fetchResponse.text();
+    const { posts, feedInfo } = parseSubstackXml(xml, targetUrl);
+
+    substackFeedCache = {
+      url: targetUrl,
+      timestamp: Date.now(),
+      posts,
+      feedInfo
+    };
+
+    res.setHeader('Cache-Control', 'no-cache');
+    res.json({
+      success: true,
+      source: 'live_fetch',
+      total: posts.length,
+      posts,
+      feedInfo,
+      lastUpdated: new Date().toISOString()
+    });
+  } catch (err: any) {
+    console.error('[Substack Feed] Error fetching feed:', err);
+    if (substackFeedCache && substackFeedCache.posts.length > 0) {
+      res.json({
+        success: true,
+        source: 'stale_cache',
+        total: substackFeedCache.posts.length,
+        posts: substackFeedCache.posts,
+        feedInfo: substackFeedCache.feedInfo,
+        warning: 'Failed to fetch live feed, returning cached version: ' + err.message
+      });
+      return;
+    }
+
+    res.status(502).json({
+      success: false,
+      error: 'Failed to fetch Substack feed: ' + (err?.message || 'Network error')
+    });
+  }
+});
+
+
+// -------------------------------------------------------------
 // ADMIN API ROUTES (PROTECTED)
 // -------------------------------------------------------------
 
